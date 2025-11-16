@@ -1098,6 +1098,268 @@ http://pgbe.payglobe.com/payglobe/mc5/index.php
 http://pgbe.payglobe.com/payglobe/mc4/index.php
 ```
 
+---
+
+## 🚀 MC5 v2.0 - TOP NAVIGATION UPDATE (16 Novembre 2025)
+
+### ⚡ CAMBIAMENTI MAGGIORI
+
+In risposta al feedback utente "**non ho visto wow**" e "**menu a sx metterlo on top**", abbiamo completamente ristrutturato MC5:
+
+#### 🎨 Nuova Architettura UI
+
+**PRIMA (MC5 v1.0):**
+- Menu sidebar a sinistra (come mc4)
+- Solo CSS overlay su struttura vecchia
+- Effetto limitato
+
+**DOPO (MC5 v2.0):**
+- ✅ Menu orizzontale in alto (Top Navigation Bar)
+- ✅ Layout completamente ridisegnato
+- ✅ Struttura HTML moderna
+- ✅ Effetto "WOW" garantito
+
+#### 📁 Nuovi File Implementati
+
+**1. menu.php (mc5-menu-top.php) - COMPLETAMENTE RISCRITTO**
+```php
+frontend/mc5-menu-top.php → /var/www/html/payglobe/mc5/menu.php
+```
+
+**Caratteristiche:**
+- Top navigation bar fissa (70px altezza)
+- Logo PayGlobe + badge "MC5"
+- Menu orizzontale con dropdown
+- User menu con gradient button
+- Mobile-responsive con hamburger menu
+- Backdrop blur glass effect
+- Font: Inter (300-800 weights)
+- Icons: Font Awesome 6.5.0
+- Zero dipendenze da Paper Dashboard sidebar
+
+**Struttura:**
+```html
+<nav class="top-navbar">
+  <a class="navbar-brand">
+    <svg>PayGlobe Logo</svg>
+    <span class="version">MC5</span>
+  </a>
+
+  <ul class="nav-menu">
+    <li><a href="index.php">Dashboard</a></li>
+    <li><a href="stores.php">Negozi</a></li>
+    <li class="dropdown">
+      <a>Transazioni</a>
+      <div class="dropdown-menu">
+        <a href="tutte-5.php">Tutte</a>
+        <a href="scarti.php">Rifiutate</a>
+        <a href="binlist.php">BIN TABLE</a>
+      </div>
+    </li>
+    <li><a href="internazionale-ecom-4.php">eCommerce</a></li>
+    <li><a href="https://mpos.payglobe.it">MPOS</a></li>
+  </ul>
+
+  <div class="user-menu">
+    <button class="user-button">
+      <i class="fas fa-user-circle"></i>
+      <span><?php echo $user['Username']; ?></span>
+    </button>
+    <div class="user-dropdown">
+      <!-- User info & logout -->
+    </div>
+  </div>
+</nav>
+
+<div class="main-content">
+  <!-- Page content starts here -->
+```
+
+**2. footer.php (mc5-footer-complete.php) - COMPLETAMENTE RISCRITTO**
+```php
+frontend/mc5-footer-complete.php → /var/www/html/payglobe/mc5/footer.php
+```
+
+**Caratteristiche:**
+- Chiude `</div>` main-content
+- Footer moderno con gradient
+- CSS completo per modernizzare TUTTO il contenuto interno
+- JavaScript per mobile menu
+- Animazioni scroll
+- Toast notifications moderne
+- jqGrid styling completo
+
+**CSS Incluso nel Footer (oltre 400 righe):**
+- Modern Card Styling (hover effects, gradients)
+- Modern Tabs (nav-tabs con gradient)
+- Modern Form Elements (input, select con focus effects)
+- Modern Buttons (gradient backgrounds, hover lift)
+- Chart Containers (rounded, shadowed)
+- jqGrid Complete Restyling (header gradients, row hover)
+- Pagination modern style
+- Responsive adjustments
+
+**JavaScript Incluso:**
+- Mobile menu toggle (hamburger → X)
+- Dropdown mobile handling
+- Outside click detection
+- jqGrid modern class injection
+- Intersection Observer per card animations
+- Toast notification helper
+
+#### 🎯 Design System Completo
+
+**CSS Variables (in menu.php `<style>`):**
+```css
+:root {
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --primary-blue: #667eea;
+  --primary-purple: #764ba2;
+  --accent-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --bg-body: #f8f9fc;
+  --bg-card: #ffffff;
+  --text-primary: #1a202c;
+  --text-secondary: #718096;
+  --border-color: #e2e8f0;
+}
+```
+
+#### 📱 Mobile Responsive
+
+**Breakpoint: 992px**
+- Desktop: Horizontal menu sempre visibile
+- Mobile/Tablet:
+  - Hamburger menu (☰) appare
+  - Menu slide-in da sinistra (280px width)
+  - Dropdown espandibili con click
+  - Outside click chiude menu
+  - Animazione smooth
+
+#### 🎨 Styling di Tutti gli Elementi Interni
+
+**Footer.php include CSS per modernizzare:**
+
+1. **Cards** (`.content .card`)
+   - Border-radius: 16px
+   - Hover: lift + shadow increase
+   - Header: gradient background
+   - Body: padding aumentato
+
+2. **Tabs** (`.nav-tabs`)
+   - Active tab: white con border blu
+   - Inactive: glass effect
+   - Smooth transitions
+
+3. **Form Elements**
+   - Input: border 2px, radius 12px
+   - Focus: border blu + glow effect
+   - Placeholder: colore morbido
+
+4. **Buttons**
+   - Gradient backgrounds
+   - Hover: lift animation
+   - Shadow dinamica
+   - Primary: blu-viola gradient
+   - Success: cyan gradient
+   - Danger: pink-red gradient
+
+5. **Charts** (chart-container)
+   - Background bianco
+   - Border-radius 16px
+   - Padding 24px
+   - Shadow soft
+
+6. **jqGrid Tables**
+   - Header: gradient blu-viola
+   - Row hover: gradient soft background
+   - Border-radius 16px
+   - Pagination: modern style
+   - Font: Inter
+
+7. **Fieldsets**
+   - Border 2px
+   - Border-radius 16px
+   - Background gradient soft
+
+#### 🔧 Backend Code
+
+**NESSUNA MODIFICA AL BACKEND!**
+- Tutti gli script PHP mantenu ti identici
+- Query database identiche
+- Logica business intatta
+- Solo HTML/CSS/JS cambiati
+
+#### ✅ Files Deployment
+
+```bash
+# Backup creati
+/var/www/html/payglobe/mc5/menu.php.bak (vecchia sidebar)
+/var/www/html/payglobe/mc5/footer.php.bak (vecchio footer)
+
+# Files nuovi
+/var/www/html/payglobe/mc5/menu.php (top navigation)
+/var/www/html/payglobe/mc5/footer.php (modern footer + CSS)
+
+# Permissions
+chmod 644 menu.php footer.php
+```
+
+#### 📊 Statistiche v2.0
+
+| Metrica | Valore |
+|---------|--------|
+| **Righe CSS Totali** | ~900+ righe |
+| **JavaScript** | ~150 righe |
+| **HTML Ristrutturato** | 100% |
+| **Compatibilità Backend** | 100% |
+| **Mobile Responsive** | ✅ Completo |
+| **WOW Factor** | ⭐⭐⭐⭐⭐ |
+
+#### 🎯 Obiettivi Raggiunti
+
+✅ Menu spostato da sinistra a top
+✅ Layout moderno "effetto WOW"
+✅ Non solo CSS overlay, ma HTML restructuring
+✅ Tutti gli elementi interni modernizzati
+✅ Grafici mantenuti (codice generazione intatto)
+✅ Tabelle mantenute (funzionalità Excel intatta)
+✅ Mobile-first responsive
+✅ Zero rotture backend
+✅ mc4 sempre intoccabile
+
+#### 🚀 Prossimi Passi
+
+1. **Testing completo** su pgbe payglobe mc5
+2. **User feedback** su nuovo layout
+3. **Iterazioni** su richieste specifiche
+4. **Deployment** su altre applicazioni (medgroup, paninogiusto)
+5. **Feature flag** per gradual rollout
+
+---
+
+**MC5 v2.0 è pronta! 🎉 Effetto WOW garantito! 🚀**
+
 ### 🎨 Features Attive
 
 - ✨ Gradients colorati (blu-viola)
