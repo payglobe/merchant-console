@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0, user-scalable=no">
+	<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+	<meta http-equiv="Pragma" content="no-cache" />
+	<meta http-equiv="Expires" content="0" />
+	<title>Negozi - PayGlobe MC5</title>
+
+	<!-- Modern Fonts -->
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+	<!-- DataTables 1.13+ Modern -->
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css"/>
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css"/>
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/rowgroup/1.4.0/css/rowGroup.dataTables.min.css"/>
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css"/>
+
+	<!-- jQuery -->
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+	<!-- DataTables Scripts -->
+	<script type="text/javascript" src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+	<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+	<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+	<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+	<script type="text/javascript" src="https://cdn.datatables.net/rowgroup/1.4.0/js/dataTables.rowGroup.min.js"></script>
+	<script type="text/javascript" src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+
+	<!-- JSZip for Excel export -->
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+	<!-- PDFMake for PDF export -->
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+
+	<style type="text/css">
+		:root {
+			--primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			--primary-blue: #667eea;
+			--store-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+			--success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+			--shadow-sm: 0 2px 4px rgba(0,0,0,0.08);
+			--shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+			--shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+			--radius-md: 12px;
+			--radius-lg: 16px;
+			--font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+		}
+
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		body {
+			font-family: var(--font-sans);
+			background: linear-gradient(135deg, #f8f9fc 0%, #e9ecef 100%);
+			color: #1a202c;
+			padding: 20px;
+			min-height: 100vh;
+		}
+
+		.container {
+			max-width: 100%;
+			margin: 0 auto;
+			animation: fadeInUp 0.6s ease-out;
+		}
+
+		@keyframes fadeInUp {
+			from {
+				opacity: 0;
+				transform: translateY(20px);
+			}
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+
+		/* Modern DataTable Container */
+		.dataTables_wrapper {
+			background: white;
+			border-radius: var(--radius-lg);
+			padding: 24px;
+			box-shadow: var(--shadow-lg);
+			border: 1px solid #e2e8f0;
+		}
+
+		.dataTables_length label,
+		.dataTables_filter label {
+			font-weight: 600;
+			color: #4a5568;
+			font-size: 0.9rem;
+		}
+
+		.dataTables_length select,
+		.dataTables_filter input {
+			border: 2px solid #e2e8f0;
+			border-radius: 10px;
+			padding: 8px 12px;
+			font-family: var(--font-sans);
+			font-size: 0.9rem;
+			margin-left: 8px;
+			transition: all 0.3s;
+		}
+
+		.dataTables_filter input {
+			width: 250px;
+		}
+
+		.dataTables_length select:focus,
+		.dataTables_filter input:focus {
+			outline: none;
+			border-color: var(--primary-blue);
+			box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+		}
+
+		/* Modern Buttons */
+		.dt-buttons {
+			margin-bottom: 20px;
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+		}
+
+		.dt-button {
+			background: var(--store-gradient) !important;
+			color: white !important;
+			border: none !important;
+			border-radius: 10px !important;
+			padding: 10px 20px !important;
+			font-family: var(--font-sans) !important;
+			font-weight: 600 !important;
+			font-size: 0.85rem !important;
+			cursor: pointer !important;
+			transition: all 0.3s !important;
+			box-shadow: var(--shadow-sm) !important;
+		}
+
+		.dt-button:hover {
+			transform: translateY(-2px) scale(1.05) !important;
+			box-shadow: var(--shadow-md) !important;
+		}
+
+		.buttons-excel {
+			background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+		}
+
+		.buttons-pdf {
+			background: linear-gradient(135deg, #dc3545 0%, #f093fb 100%) !important;
+		}
+
+		.buttons-csv {
+			background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%) !important;
+		}
+
+		.buttons-colvis {
+			background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
+		}
+
+		/* Modern Table */
+		table.dataTable {
+			border-collapse: separate !important;
+			border-spacing: 0 !important;
+			width: 100% !important;
+			border-radius: var(--radius-md) !important;
+			overflow: hidden !important;
+		}
+
+		table.dataTable thead {
+			background: var(--store-gradient);
+		}
+
+		table.dataTable thead th {
+			background: transparent !important;
+			color: white !important;
+			font-weight: 700 !important;
+			font-size: 0.8rem !important;
+			text-transform: uppercase !important;
+			letter-spacing: 0.5px !important;
+			padding: 16px 12px !important;
+			border: none !important;
+			border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+		}
+
+		table.dataTable thead th:last-child {
+			border-right: none !important;
+		}
+
+		table.dataTable tbody td {
+			padding: 14px 12px !important;
+			font-size: 0.85rem !important;
+			color: #2d3748 !important;
+			border-bottom: 1px solid #e2e8f0 !important;
+			border-right: 1px solid #f7fafc !important;
+		}
+
+		table.dataTable tbody td:last-child {
+			border-right: none !important;
+		}
+
+		table.dataTable tbody tr {
+			transition: all 0.3s;
+			cursor: pointer;
+		}
+
+		table.dataTable tbody tr:hover {
+			background: linear-gradient(90deg, rgba(240,147,251,0.08) 0%, transparent 100%) !important;
+			transform: scale(1.002);
+			box-shadow: 0 2px 8px rgba(240,147,251,0.2);
+		}
+
+		table.dataTable tbody tr:nth-child(even) {
+			background-color: #f8fafc;
+		}
+
+		/* Row Grouping */
+		tr.dtrg-group {
+			background: var(--store-gradient) !important;
+			color: white !important;
+			font-weight: 700 !important;
+			font-size: 0.95rem !important;
+			cursor: pointer !important;
+			transition: all 0.3s !important;
+		}
+
+		tr.dtrg-group:hover {
+			transform: scale(1.005) !important;
+			box-shadow: var(--shadow-md) !important;
+		}
+
+		tr.dtrg-group td {
+			padding: 16px 12px !important;
+			border: none !important;
+			color: white !important;
+		}
+
+		tr.dtrg-group.collapsed {
+			background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%) !important;
+			opacity: 0.9;
+		}
+
+		tr.dtrg-group td a {
+			color: white !important;
+			text-decoration: none !important;
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		tr.dtrg-group td a::before {
+			content: "\f078";
+			font-family: "Font Awesome 6 Free";
+			font-weight: 900;
+			font-size: 0.8rem;
+			transition: transform 0.3s;
+		}
+
+		tr.dtrg-group.collapsed td a::before {
+			transform: rotate(-90deg);
+		}
+
+		/* Store Badge */
+		.store-badge {
+			background: rgba(255, 255, 255, 0.25);
+			padding: 4px 12px;
+			border-radius: 20px;
+			font-weight: 600;
+			margin-left: auto;
+			backdrop-filter: blur(10px);
+		}
+
+		/* Footer */
+		.dataTables_info,
+		.dataTables_paginate {
+			margin-top: 20px;
+			font-size: 0.85rem;
+			color: #4a5568;
+		}
+
+		.dataTables_paginate .paginate_button {
+			border: 2px solid #e2e8f0 !important;
+			border-radius: 8px !important;
+			padding: 6px 12px !important;
+			margin: 0 4px !important;
+			font-weight: 600 !important;
+			transition: all 0.3s !important;
+			background: white !important;
+			color: #4a5568 !important;
+		}
+
+		.dataTables_paginate .paginate_button:hover {
+			background: var(--store-gradient) !important;
+			color: white !important;
+			border-color: transparent !important;
+			transform: translateY(-2px);
+		}
+
+		.dataTables_paginate .paginate_button.current {
+			background: var(--store-gradient) !important;
+			color: white !important;
+			border-color: transparent !important;
+		}
+
+		.dataTables_processing {
+			background: white !important;
+			border: none !important;
+			border-radius: var(--radius-lg) !important;
+			box-shadow: var(--shadow-lg) !important;
+			padding: 40px !important;
+		}
+
+		@media (max-width: 768px) {
+			body {
+				padding: 10px;
+			}
+
+			.dataTables_wrapper {
+				padding: 16px;
+			}
+
+			.dataTables_filter input {
+				width: 100%;
+				margin-top: 8px;
+			}
+
+			table.dataTable thead th,
+			table.dataTable tbody td {
+				font-size: 0.75rem !important;
+				padding: 10px 8px !important;
+			}
+		}
+	</style>
+
+	<script type="text/javascript" language="javascript">
+		$(document).ready(function() {
+			var urlParams = new URLSearchParams(location.search);
+			var collapsedGroups = {};
+			var top = '';
+			var parent = '';
+
+			var table = $('#stores').DataTable({
+				processing: true,
+				language: {
+					url: "https://cdn.datatables.net/plug-ins/1.13.7/i18n/it-IT.json",
+					processing: '<div style="padding: 20px;"><i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: #f093fb;"></i><div style="margin-top: 16px; font-weight: 600; color: #4a5568;">Caricamento negozi...</div></div>'
+				},
+				dom: "Blfrtip",
+				responsive: true,
+				lengthMenu: [[100, 500, 1000, -1], [100, 500, 1000, "Tutti"]],
+				pageLength: -1,
+				buttons: [
+					{
+						extend: 'excel',
+						title: 'PayGlobe - Negozi',
+						text: '<i class="fas fa-file-excel"></i> Excel',
+						sheetName: 'Negozi',
+						className: 'buttons-excel',
+						messageTop: 'PayGlobe Merchant Console - Negozi',
+						messageBottom: "© PayGlobe",
+						exportOptions: {
+							modifier: {
+								search: 'applied',
+								order: 'applied'
+							}
+						}
+					},
+					{
+						extend: 'pdf',
+						title: 'PayGlobe - Negozi',
+						text: '<i class="fas fa-file-pdf"></i> PDF',
+						orientation: 'landscape',
+						className: 'buttons-pdf',
+						messageTop: 'PayGlobe Merchant Console MC5 - Negozi',
+						messageBottom: "© PayGlobe",
+						exportOptions: {
+							modifier: {
+								search: 'applied',
+								order: 'applied'
+							}
+						}
+					},
+					{
+						extend: 'csv',
+						text: '<i class="fas fa-file-csv"></i> CSV',
+						className: 'buttons-csv'
+					},
+					{
+						extend: 'colvis',
+						text: '<i class="fas fa-columns"></i> Colonne',
+						className: 'buttons-colvis'
+					}
+				],
+				rowGroup: {
+					startRender: function(rows, group, level) {
+						var all;
+						if (level === 0) {
+							top = group;
+							all = group;
+						} else if (level === 1) {
+							parent = top + group;
+							all = parent;
+							if (!!collapsedGroups[top]) {
+								return;
+							}
+						} else {
+							if (!!collapsedGroups[parent]) {
+								return;
+							}
+							all = top + parent + group;
+						}
+
+						var collapsed = !!collapsedGroups[all];
+
+						rows.nodes().each(function(r) {
+							r.style.display = collapsed ? '' : 'none';
+						});
+
+						return $('<tr>')
+							.append('<td><a href="#"><i class="fas fa-store"></i> ' + group + ' <span class="store-badge">' + rows.count() + ' negozi</span></a></td>')
+							.attr('data-name', all)
+							.toggleClass('collapsed', collapsed);
+					},
+					endRender: function(rows, group, level) {},
+					dataSrc: 8
+				},
+				serverSide: true,
+				ajax: "scripts/stores__server.php?where=country ='" + urlParams.get('q') + "'",
+				initComplete: function() {
+					$('.dataTables_wrapper').css('opacity', '0').animate({opacity: 1}, 600);
+				}
+			});
+
+			$('#stores tbody').on('click', 'tr.dtrg-start', function() {
+				var name = $(this).data('name');
+				collapsedGroups[name] = !collapsedGroups[name];
+				table.draw(false);
+			});
+		});
+	</script>
+</head>
+<body>
+	<div class="container">
+		<section>
+			<table id="stores" class="display compact cell-border" style="width:100%">
+				<thead>
+					<tr>
+						<th>Terminal ID</th>
+						<th>Negozio</th>
+						<th>Insegna</th>
+						<th>Indirizzo</th>
+						<th>Città</th>
+						<th>CAP</th>
+						<th>Provincia</th>
+						<th>Modello POS</th>
+						<th>Nazione</th>
+					</tr>
+				</thead>
+				<tfoot>
+					<tr>
+						<th>Terminal ID</th>
+						<th>Negozio</th>
+						<th>Insegna</th>
+						<th>Indirizzo</th>
+						<th>Città</th>
+						<th>CAP</th>
+						<th>Provincia</th>
+						<th>Modello POS</th>
+						<th>Nazione</th>
+					</tr>
+				</tfoot>
+			</table>
+		</section>
+	</div>
+</body>
+</html>
