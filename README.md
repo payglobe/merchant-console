@@ -7,7 +7,7 @@ Sistema completo di gestione merchant per PayGlobe, composto da backend Spring B
 Il progetto è composto da tre componenti principali:
 
 ### 1. Backend Spring Boot (merchant-api)
-- **Percorso produzione**: `/opt/merchant-console/`
+- **Percorso produzione**: `/opt/merchant-api/`
 - **Porta**: 8082
 - **Service**: `merchant-api`
 - **Database**: MySQL 8.0 su 10.10.10.13
@@ -23,7 +23,7 @@ Il progetto è composto da tre componenti principali:
   - Statistiche e grafici interattivi
 
 ### 3. Frontend React (Nuova versione)
-- **Percorso produzione**: `/opt/merchant-console/frontend/`
+- **Percorso produzione**: `/opt/merchant-console/frontend/` o `/var/www/html/merchant/`
 - **Stack**: React + API Gateway integration
 - **Status**: In sviluppo
 
@@ -101,7 +101,7 @@ Il JAR compilato sarà in `target/merchant-console-1.0.0.jar`
 
 ```bash
 # Copia il JAR sul server
-scp target/merchant-console-1.0.0.jar pguser@pgbe2:/opt/merchant-console/
+scp target/merchant-console-1.0.0.jar pguser@pgbe2:/opt/merchant-api/
 
 # Configura il service systemd
 # File: /etc/systemd/system/merchant-api.service
@@ -117,8 +117,8 @@ After=network.target
 [Service]
 Type=simple
 User=pguser
-WorkingDirectory=/opt/merchant-console
-ExecStart=/usr/bin/java -jar /opt/merchant-console/merchant-console-1.0.0.jar --spring.config.location=/opt/merchant-console/config/application.properties
+WorkingDirectory=/opt/merchant-api
+ExecStart=/usr/bin/java -jar /opt/merchant-api/merchant-console-1.0.0.jar --spring.config.location=/opt/merchant-api/config/application.properties
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -183,8 +183,10 @@ npm install
 # Build per produzione
 npm run build
 
-# Deploy
+# Deploy su uno dei due percorsi
 scp -r build/* pguser@pgbe2:/opt/merchant-console/frontend/
+# oppure
+scp -r build/* pguser@pgbe2:/var/www/html/merchant/
 ```
 
 ## Configurazione Apache/Nginx
@@ -269,9 +271,9 @@ Tabelle principali:
 
 - **Host**: pgbe2
 - **User**: pguser
-- **Backend**: `/opt/merchant-console/`
+- **Backend**: `/opt/merchant-api/`
 - **Frontend Alpine.js**: `/var/www/html/merchant/frontend/dashboard/`
-- **Frontend React**: `/opt/merchant-console/frontend/`
+- **Frontend React**: `/opt/merchant-console/frontend/` o `/var/www/html/merchant/`
 
 ## Logs
 

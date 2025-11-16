@@ -6,11 +6,11 @@
 - merorize memorizza nel progetto e in deploy!
 host pgbe2: user:pguser
 Front end react deploy in
-/opt/merchant-console/frontend
+/opt/merchant-console/frontend/ oppure /var/www/html/merchant/
 Front end Alpine.js (vecchio dashboard) in
 /var/www/html/merchant/frontend/dashboard/
 Back end spring-boot
-/opt/merchant-console/
+/opt/merchant-api/
 Backend service: sudo service merchant-api start/stop/restart
 - memorize claude have access with pguser on target diretoty do not use TMP
 - NON riavviare mai il backend automaticamente - lasciare che lo faccia l'utente con sudo service merchant-api restart
@@ -25,7 +25,7 @@ Backend service: sudo service merchant-api start/stop/restart
 - Supporta ZIP e CSV
 - Max size: 100MB
 - Database: bin_table con campi nullable (bin_length, start_bin, end_bin)
-- Config: ddl-auto=update in /opt/merchant-console/config/application.properties
+- Config: ddl-auto=update in /opt/merchant-api/config/application.properties
 - Fix "Stream closed": rimosso zipInputStream.closeEntry() in importFromZip()
 
 ## Top 10 Banche - Implementato
