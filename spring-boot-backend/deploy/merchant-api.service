@@ -1,0 +1,38 @@
+[Unit]
+Description=PayGlobe Merchant API (Spring Boot)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=pguser
+Group=pguser
+WorkingDirectory=/opt/merchant-console
+
+# Java options (limitato a 1GB per server condiviso)
+Environment="JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64"
+Environment="JAVA_OPTS=-Xmx1024m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+
+# Spring profiles
+Environment="SPRING_PROFILES_ACTIVE=production"
+
+# JWT Secret (IMPORTANTE: cambiare in produzione!)
+Environment="JWT_SECRET=change-this-secret-in-production-minimum-256-bits-payglobe-merchant-2025-super-secret"
+
+# Database password (opzionale, già in application-production.yml)
+Environment="DB_PASSWORD=PNeNkar{K1.%D~V"
+
+# Esegui JAR
+ExecStart=/usr/bin/java $JAVA_OPTS -jar /opt/merchant-console/merchant-api.jar
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Limiti risorse
+LimitNOFILE=65536
+MemoryLimit=1536M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,57 @@
+# Windows reserved names
+nul
+NUL
+CON
+PRN
+AUX
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.process_*.swp
+
+# Build artifacts
+target/
+build/
+dist/
+*.jar
+*.war
+*.ear
+node_modules/
+
+# Dependencies
+vendor/
+
+# Logs
+*.log
+apache_error*.log
+
+# Sensitive data
+*.env
+.env
+.env.local
+config/application-production.properties
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.old
+*~
+
+# Database dumps (keep only schema)
+database_schema.sql
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Compiled files
+*.class
+*.pyc
+__pycache__/
+
+# Test files
+test-*.html

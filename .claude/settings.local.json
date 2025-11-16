@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(scp:*)",
+      "WebFetch(domain:ricevute.payglobe.it)",
+      "Bash(ssh pguser@pgbe2 \"sudo systemctl reload apache2 2>/dev/null || sudo systemctl reload httpd 2>/dev/null || echo ''Done''\")",
+      "Bash(php -l:*)",
+      "Bash(ssh pguser@pgbe2 \"tail -50 /var/log/apache2/error.log 2>/dev/null || tail -50 /var/log/httpd/error_log 2>/dev/null\")",
+      "Bash(ssh pguser@pgbe2 \"php -l /var/www/html/merchant/satispay_activation_handler.php\")",
+      "Bash(ssh:*)",
+      "WebFetch(domain:api.payglobe.it)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(mvn:*)",
+      "Bash(\"C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd\" clean package -DskipTests)",
+      "Bash(findstr:*)",
+      "Bash(\"C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd\" package -DskipTests -q)",
+      "Bash(dir:*)",
+      "Bash(nul)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(\"C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd\" clean package -DskipTests -q)",
+      "Bash(\"C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd\" package -DskipTests)",
+      "Bash(npm install:*)",
+      "Bash(\"C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd\" clean compile -DskipTests)",
+      "Bash(chmod:*)",
+      "Bash(cmd /c \"cd /d C:\\Users\\hellrock\\Desktop\\merchant\\spring-boot-backend && C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd clean package -DskipTests\")",
+      "Bash(\"C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd\" -f \"C:\\Users\\hellrock\\Desktop\\merchant\\spring-boot-backend\\pom.xml\" clean package -DskipTests)",
+      "Bash(\"C:\\Users\\hellrock\\Desktop\\serverpos_v1\\apache-maven-3.9.11\\bin\\mvn.cmd\" -f \"C:\\Users\\hellrock\\Desktop\\merchant\\spring-boot-backend\\pom.xml\" clean package -DskipTests -q)",
+      "Bash(powershell -Command \"Get-Content ''C:\\Users\\hellrock\\Desktop\\merchant\\frontend\\dashboard\\index.php'' | Select-Object -Last 20\")",
+      "Bash(powershell -Command:*)",
+      "Bash(url=dashboard/\">\n    <title>PayGlobe Merchant Console - Redirect</title>\n    <style>\n        body {\n            margin: 0;\n            padding: 0;\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            min-height: 100vh;\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n            font-family: -apple-system, BlinkMacSystemFont, ''Segoe UI'', Roboto, ''Helvetica Neue'', Arial, sans-serif;\n        }\n        .container {\n            text-align: center;\n            color: white;\n        }\n        .spinner {\n            border: 4px solid rgba(255, 255, 255, 0.3);\n            border-radius: 50%;\n            border-top: 4px solid white;\n            width: 50px;\n            height: 50px;\n            animation: spin 1s linear infinite;\n            margin: 0 auto 20px;\n        }\n        @keyframes spin {\n            0% { transform: rotate(0deg); }\n            100% { transform: rotate(360deg); }\n        }\n        h1 {\n            margin: 0;\n            font-size: 24px;\n            font-weight: 600;\n        }\n        p {\n            margin: 10px 0 0;\n            opacity: 0.9;\n        }\n        a {\n            color: white;\n            text-decoration: underline;\n            margin-top: 20px;\n            display: inline-block;\n        }\n    </style>\n    <script>\n        // Redirect to dashboard immediately\n        window.location.href = ''dashboard/'';\n    </script>\n</head>\n<body>\n    <div class=\"container\">\n        <div class=\"spinner\"></div>\n        <h1>PayGlobe Merchant Console</h1>\n        <p>Reindirizzamento alla dashboard...</p>\n        <p><a href=\"dashboard/\">Clicca qui se non vieni reindirizzato automaticamente</a></p>\n    </div>\n</body>\n</html>\nEOF\ncat /var/www/html/merchant/frontend/index.html\")",
+      "Bash(database_schema.sql)",
+      "Bash(database/schema.sql)",
+      "Bash(git remote add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

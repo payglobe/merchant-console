@@ -1,0 +1,8 @@
+RewriteEngine On
+RewriteBase /merchant/api/a-cube/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
+Header set Access-Control-Allow-Origin "*"
+Header set Access-Control-Allow-Headers "Content-Type,X-Idempotency-Key,X-App-Signature"
+Header set Access-Control-Allow-Methods "GET,POST,DELETE,OPTIONS"
+

@@ -1,0 +1,2263 @@
+/**
+ * PayGlobe Merchant Console v2.4.1 - Dashboard
+ * Alpine.js + ECharts + Spring Boot API
+ */
+
+function dashboard() {
+    return {
+        // API Configuration
+        apiUrl: '/merchant-api',
+
+        // State
+        isAuthenticated: false,
+        user: null,
+        loading: false,
+        loginError: '',
+        currentPage: 'dashboard',
+
+        // Login form
+        loginForm: {
+            email: '',
+            password: ''
+        },
+
+        // Filters
+        filters: {
+            startDate: '',
+            endDate: '',
+            filterStore: ''
+        },
+
+        // Data
+        stats: null,
+        transactions: [],
+        stores: [],
+
+        // Pagination
+        page: 0,
+        totalPages: 0,
+
+        // Search
+        transactionSearch: '',
+
+        // Charts
+        circuitChart: null,
+        trendChart: null,
+
+        // Statistics page
+        statsPeriod: '7d', // Default 7 giorni (per admin è già tanto)
+        statsFilterStore: '',
+        statsFilterStoreSearch: '',
+        statsData: {
+            successRate: '0%',
+            maxAmount: 0,
+            minAmount: 0,
+            peakHour: '--:--'
+        },
+        hourlyChart: null,
+        weekdayChart: null,
+        amountRangeChart: null,
+        topBanksChart: null,
+        transactionTypesChart: null,
+
+        // Admin sections
+        users: [],
+        userStats: null,
+        userSearch: '',
+        userModal: {
+            show: false,
+            mode: 'create', // 'create' or 'edit'
+            user: {},
+            password: ''
+        },
+        passwordChangeModal: {
+            show: false,
+            oldPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+            error: '',
+            isFirstLogin: false // Flag to indicate if this is forced password change at login
+        },
+        activationCodes: [],
+        activationCodeStats: null,
+        activationCodeFilters: {
+            status: 'all',
+            bu: '',
+            search: ''
+        },
+        activationCodeForm: {
+            terminalId: '',
+            bu: '',
+            language: 'it',
+            notes: ''
+        },
+        binUploadFile: null,
+        binUploadProgress: 0,
+        binUploadMessage: '',
+        binImportId: null,
+        binImportStatus: null,
+        binProcessedRecords: 0,
+        binTotalRecords: 0,
+        binImportPolling: null,
+
+        // Filtered transactions for search
+        get filteredTransactions() {
+            if (!this.transactionSearch || this.transactionSearch.trim() === '') {
+                return this.transactions;
+            }
+
+            const search = this.transactionSearch.toLowerCase();
+            return this.transactions.filter(tx => {
+                return (
+                    (tx.posid || '').toLowerCase().includes(search) ||
+                    (tx.pan || '').toLowerCase().includes(search) ||
+                    (tx.storeInsegna || '').toLowerCase().includes(search) ||
+                    (tx.storeRagioneSociale || '').toLowerCase().includes(search) ||
+                    (tx.transactionType || '').toLowerCase().includes(search) ||
+                    (tx.cardBrand || '').toLowerCase().includes(search) ||
+                    (tx.amount || '').toString().includes(search)
+                );
+            });
+        },
+
+        // Stats cards computed data
+        get statsCards() {
+            if (!this.stats) {
+                return [
+                    { title: 'Transazioni', value: '...', icon: 'activity', bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
+                    { title: 'Importo Totale', value: '...', icon: 'euro', bgColor: 'bg-green-50', iconColor: 'text-green-600' },
+                    { title: 'Importo Medio', value: '...', icon: 'trending-up', bgColor: 'bg-purple-50', iconColor: 'text-purple-600' },
+                    { title: 'Regolate/Non regolate', value: '...', icon: 'check-circle', bgColor: 'bg-orange-50', iconColor: 'text-orange-600' }
+                ];
+            }
+
+            // Calculate average amount (only settled transactions)
+            const averageAmount = this.stats.settledCount > 0 ? this.stats.volume / this.stats.settledCount : 0;
+
+            return [
+                {
+                    title: 'Transazioni',
+                    value: (this.stats.total || 0).toLocaleString('it-IT'),
+                    icon: 'activity',
+                    bgColor: 'bg-blue-50',
+                    iconColor: 'text-blue-600'
+                },
+                {
+                    title: 'Importo Totale',
+                    value: this.formatCurrency(this.stats.volume || 0),
+                    icon: 'euro',
+                    bgColor: 'bg-green-50',
+                    iconColor: 'text-green-600'
+                },
+                {
+                    title: 'Importo Medio',
+                    value: this.formatCurrency(averageAmount),
+                    icon: 'trending-up',
+                    bgColor: 'bg-purple-50',
+                    iconColor: 'text-purple-600'
+                },
+                {
+                    title: 'Regolate/Non regolate',
+                    value: (this.stats.settledCount || 0).toLocaleString('it-IT') + ' / ' + (this.stats.notSettledCount || 0).toLocaleString('it-IT'),
+                    icon: 'check-circle',
+                    bgColor: 'bg-orange-50',
+                    iconColor: 'text-orange-600'
+                }
+            ];
+        },
+
+        // Initialization
+        init() {
+            console.log('Dashboard initializing...');
+
+            // Check if already authenticated
+            const token = localStorage.getItem('accessToken');
+            const userStr = localStorage.getItem('user');
+
+            if (token && userStr) {
+                try {
+                    this.user = JSON.parse(userStr);
+                    console.log('User authenticated:', this.user.email);
+
+                    // Set default dates based on role
+                    const daysBack = this.user.isAdmin ? 1 : 30;
+                    const today = new Date();
+                    const startDate = new Date();
+                    startDate.setDate(today.getDate() - daysBack);
+
+                    this.filters.startDate = this.formatDateForInput(startDate);
+                    this.filters.endDate = this.formatDateForInput(today);
+
+                    console.log('Dates initialized:', {
+                        startDate: this.filters.startDate,
+                        endDate: this.filters.endDate,
+                        daysBack: daysBack
+                    });
+
+                    // Set authenticated AFTER preparing everything
+                    this.isAuthenticated = true;
+
+                    // Force Alpine to update DOM, then load data
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            console.log('Loading initial data after timeout...');
+                            console.log('isAuthenticated:', this.isAuthenticated);
+                            console.log('Dashboard element visible:', document.getElementById('circuitChart') !== null);
+                            lucide.createIcons();
+                            this.loadStores();
+                            this.loadAllData();
+                        }, 300);
+                    });
+                } catch (e) {
+                    console.error('Failed to parse user:', e);
+                    localStorage.clear();
+                }
+            } else {
+                // Initialize Lucide icons for login screen
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        // Authentication
+        async login() {
+            this.loginError = '';
+            this.loading = true;
+
+            try {
+                console.log('Attempting login:', this.loginForm.email);
+
+                const response = await fetch('/merchant-api/api/v2/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: this.loginForm.email,
+                        password: this.loginForm.password
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'Login fallito');
+                }
+
+                const data = await response.json();
+                console.log('Login successful:', data.email);
+
+                // Store tokens and user info
+                localStorage.setItem('accessToken', data.accessToken);
+                localStorage.setItem('refreshToken', data.refreshToken);
+                localStorage.setItem('user', JSON.stringify({
+                    userId: data.userId,
+                    email: data.email,
+                    bu: data.bu,
+                    ragioneSociale: data.ragioneSociale,
+                    isAdmin: data.isAdmin
+                }));
+
+                this.user = {
+                    userId: data.userId,
+                    email: data.email,
+                    bu: data.bu,
+                    ragioneSociale: data.ragioneSociale,
+                    isAdmin: data.isAdmin
+                };
+
+                // Verify token is saved
+                const savedToken = localStorage.getItem('accessToken');
+                if (!savedToken) {
+                    console.error('Failed to save authentication token');
+                    throw new Error('Failed to save authentication token');
+                }
+
+                // Check if password change is required
+                if (data.forcePasswordChange) {
+                    console.log('Password change required at login');
+                    // Show password change modal on LOGIN screen
+                    // Do NOT set isAuthenticated yet - dashboard will load after password change
+                    this.passwordChangeModal.show = true;
+                    this.passwordChangeModal.isFirstLogin = true; // Flag to know we need to load dashboard after
+
+                    // Initialize lucide icons for the modal
+                    this.$nextTick(() => {
+                        lucide.createIcons();
+                    });
+                    return; // Exit here - don't load dashboard yet
+                }
+
+                // Normal login flow (no password change required)
+                // Set default dates
+                const daysBack = this.user.isAdmin ? 1 : 30;
+                const today = new Date();
+                const startDate = new Date();
+                startDate.setDate(today.getDate() - daysBack);
+
+                this.filters.startDate = this.formatDateForInput(startDate);
+                this.filters.endDate = this.formatDateForInput(today);
+
+                // Set authenticated and load data
+                this.isAuthenticated = true;
+
+                // Give Alpine time to update DOM, then load dashboard data
+                setTimeout(() => {
+                    const checkToken = localStorage.getItem('accessToken');
+                    if (!checkToken) {
+                        console.error('Token not available');
+                        this.loginError = 'Errore: token di autenticazione non disponibile';
+                        return;
+                    }
+
+                    try {
+                        lucide.createIcons();
+                        this.loadStores();
+                        this.loadAllData();
+                    } catch (err) {
+                        console.error('Error loading dashboard:', err);
+                        this.loginError = 'Errore caricamento dashboard: ' + err.message;
+                    }
+                }, 300);
+
+            } catch (error) {
+                console.error('Login error:', error);
+                this.loginError = error.message || 'Credenziali non valide. Riprova.';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async logout(skipReload = false) {
+            try {
+                const token = localStorage.getItem('accessToken');
+                if (token) {
+                    await fetch('/merchant-api/api/v2/auth/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    }).catch(() => {
+                        // Ignore logout errors (token might be expired)
+                    });
+                }
+            } finally {
+                localStorage.clear();
+                this.isAuthenticated = false;
+                this.user = null;
+                this.stats = null;
+                this.transactions = [];
+                this.stores = [];
+                this.page = 0;
+                this.totalPages = 0;
+
+                if (!skipReload) {
+                    window.location.reload();
+                }
+            }
+        },
+
+        // Data loading
+        async loadAllData() {
+            await Promise.all([
+                this.loadStats(),
+                this.loadTransactions(),
+                this.loadCharts()
+            ]);
+        },
+
+        async loadStats() {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const params = new URLSearchParams({
+                    startDate: this.filters.startDate,
+                    endDate: this.filters.endDate
+                });
+
+                if (this.filters.filterStore) {
+                    params.append('filterStore', this.filters.filterStore);
+                }
+
+                console.log('Loading stats with params:', {
+                    startDate: this.filters.startDate,
+                    endDate: this.filters.endDate,
+                    filterStore: this.filters.filterStore
+                });
+
+                const url = `/merchant-api/api/v2/transactions/stats?${params}`;
+                console.log('Stats URL:', url);
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                console.log('Stats response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Stats error response:', errorText);
+                    throw new Error(`Failed to load stats: ${response.status} - ${errorText}`);
+                }
+
+                this.stats = await response.json();
+                console.log('Stats loaded successfully:', this.stats);
+                console.log('Stats values:', {
+                    total: this.stats.total,
+                    volume: this.stats.volume,
+                    settledCount: this.stats.settledCount,
+                    notSettledCount: this.stats.notSettledCount
+                });
+
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                alert('Errore caricamento statistiche: ' + error.message);
+                if (error.message.includes('401')) {
+                    this.logout();
+                }
+            }
+        },
+
+        async loadTransactions() {
+            this.loading = true;
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const params = new URLSearchParams({
+                    page: this.page,
+                    size: 25,
+                    startDate: this.filters.startDate,
+                    endDate: this.filters.endDate
+                });
+
+                if (this.filters.filterStore) {
+                    params.append('filterStore', this.filters.filterStore);
+                }
+
+                console.log('Loading transactions with params:', {
+                    page: this.page,
+                    startDate: this.filters.startDate,
+                    endDate: this.filters.endDate,
+                    filterStore: this.filters.filterStore
+                });
+
+                const url = `/merchant-api/api/v2/transactions?${params}`;
+                console.log('Transactions URL:', url);
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                console.log('Transactions response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Transactions error response:', errorText);
+                    throw new Error(`Failed to load transactions: ${response.status}`);
+                }
+
+                const data = await response.json();
+                this.transactions = data.content || [];
+                this.totalPages = data.totalPages || 0;
+                console.log('Transactions loaded successfully:', this.transactions.length, 'items');
+
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+                alert('Errore caricamento transazioni: ' + error.message);
+                if (error.message.includes('401')) {
+                    this.logout();
+                }
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadCharts() {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const params = new URLSearchParams({
+                    startDate: this.filters.startDate,
+                    endDate: this.filters.endDate
+                });
+
+                if (this.filters.filterStore) {
+                    params.append('filterStore', this.filters.filterStore);
+                }
+
+                console.log('Loading charts with params:', {
+                    startDate: this.filters.startDate,
+                    endDate: this.filters.endDate,
+                    filterStore: this.filters.filterStore
+                });
+
+                const circuitUrl = `/merchant-api/api/v2/transactions/circuits?${params}`;
+                const trendUrl = `/merchant-api/api/v2/transactions/trend?${params}`;
+                console.log('Circuit URL:', circuitUrl);
+                console.log('Trend URL:', trendUrl);
+
+                // Load circuit distribution and trend in parallel
+                const [circuitResponse, trendResponse] = await Promise.all([
+                    fetch(circuitUrl, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(trendUrl, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ]);
+
+                console.log('Circuit response status:', circuitResponse.status);
+                console.log('Trend response status:', trendResponse.status);
+
+                if (!circuitResponse.ok || !trendResponse.ok) {
+                    const circuitError = !circuitResponse.ok ? await circuitResponse.text() : null;
+                    const trendError = !trendResponse.ok ? await trendResponse.text() : null;
+                    console.error('Circuit error:', circuitError);
+                    console.error('Trend error:', trendError);
+                    throw new Error('Failed to load charts data');
+                }
+
+                const circuitData = await circuitResponse.json();
+                const trendData = await trendResponse.json();
+
+                console.log('Circuit data loaded:', circuitData);
+                console.log('Trend data loaded:', trendData);
+
+                // Update charts
+                this.$nextTick(() => {
+                    this.renderCircuitChart(circuitData.circuits || {});
+                    this.renderTrendChart(trendData || []);
+                });
+
+            } catch (error) {
+                console.error('Error loading charts:', error);
+                alert('Errore caricamento grafici: ' + error.message);
+                if (error.message.includes('401')) {
+                    this.logout();
+                }
+            }
+        },
+
+        async loadStores() {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch('/merchant-api/api/v2/stores/groups', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to load stores');
+
+                const storesData = await response.json();
+                // Clean terminalIds (remove ALL spaces, even between comma-separated IDs)
+                this.stores = storesData.map(store => ({
+                    ...store,
+                    terminalIds: store.terminalIds
+                        ? store.terminalIds.split(',').map(id => id.trim()).filter(id => id).join(',')
+                        : ''
+                }));
+                console.log('Stores loaded:', this.stores.length);
+
+            } catch (error) {
+                console.error('Error loading stores:', error);
+            }
+        },
+
+        // Charts rendering
+        renderCircuitChart(circuits) {
+            const chartDom = document.getElementById('circuitChart');
+            if (!chartDom) return;
+
+            if (!this.circuitChart) {
+                this.circuitChart = echarts.init(chartDom);
+            }
+
+            // Transform data for ECharts
+            const data = Object.entries(circuits).map(([name, value]) => ({
+                name: name || 'Sconosciuto',
+                value: value
+            }));
+
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}: {c} ({d}%)'
+                },
+                legend: {
+                    orient: 'vertical',
+                    left: 'left',
+                    top: 'center'
+                },
+                series: [
+                    {
+                        name: 'Circuiti',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: true,
+                        itemStyle: {
+                            borderRadius: 10,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: true,
+                            formatter: '{b}\n{d}%'
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: 16,
+                                fontWeight: 'bold'
+                            },
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        },
+                        data: data,
+                        animationType: 'scale',
+                        animationEasing: 'elasticOut',
+                        animationDelay: (idx) => idx * 100
+                    }
+                ],
+                color: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899']
+            };
+
+            this.circuitChart.setOption(option);
+        },
+
+        renderTrendChart(trendData) {
+            const chartDom = document.getElementById('trendChart');
+            if (!chartDom) return;
+
+            if (!this.trendChart) {
+                this.trendChart = echarts.init(chartDom);
+            }
+
+            // Extract dates and amounts (backend returns: date, count, amount)
+            const dates = trendData.map(item => item.date);
+            const amounts = trendData.map(item => item.amount || 0);
+            const counts = trendData.map(item => item.count || 0);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross'
+                    },
+                    formatter: (params) => {
+                        let result = `<strong>${params[0].axisValue}</strong><br/>`;
+                        params.forEach(param => {
+                            const value = param.seriesName === 'Importo'
+                                ? this.formatCurrency(param.value)
+                                : param.value + ' tx';
+                            result += `${param.marker} ${param.seriesName}: ${value}<br/>`;
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['Importo', 'Transazioni'],
+                    top: 10
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: dates,
+                    axisLabel: {
+                        rotate: 45
+                    }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'Importo (€)',
+                        position: 'left',
+                        axisLabel: {
+                            formatter: (value) => '€' + (value / 1).toFixed(0)
+                        }
+                    },
+                    {
+                        type: 'value',
+                        name: 'Transazioni',
+                        position: 'right'
+                    }
+                ],
+                series: [
+                    {
+                        name: 'Importo',
+                        type: 'line',
+                        smooth: true,
+                        data: amounts,
+                        yAxisIndex: 0,
+                        itemStyle: {
+                            color: '#8b5cf6'
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(139, 92, 246, 0.3)' },
+                                { offset: 1, color: 'rgba(139, 92, 246, 0.05)' }
+                            ])
+                        },
+                        animationDuration: 2000,
+                        animationEasing: 'cubicOut'
+                    },
+                    {
+                        name: 'Transazioni',
+                        type: 'line',
+                        smooth: true,
+                        data: counts,
+                        yAxisIndex: 1,
+                        itemStyle: {
+                            color: '#3b82f6'
+                        },
+                        animationDuration: 2000,
+                        animationEasing: 'cubicOut',
+                        animationDelay: 300
+                    }
+                ]
+            };
+
+            this.trendChart.setOption(option);
+        },
+
+        // Pagination
+        prevPage() {
+            if (this.page > 0) {
+                this.page--;
+                this.loadTransactions();
+            }
+        },
+
+        nextPage() {
+            if (this.page < this.totalPages - 1) {
+                this.page++;
+                this.loadTransactions();
+            }
+        },
+
+        // Export to CSV
+        async exportToCSV() {
+            if (!this.filters.startDate || !this.filters.endDate) {
+                alert('Seleziona un intervallo di date');
+                return;
+            }
+
+            try {
+                this.loading = true;
+                const token = localStorage.getItem('accessToken');
+
+                // Fetch ALL transactions with filters (no pagination)
+                const params = new URLSearchParams({
+                    page: 0,
+                    size: 1000000, // Large number to get all
+                    startDate: this.filters.startDate,
+                    endDate: this.filters.endDate
+                });
+
+                if (this.filters.filterStore) {
+                    params.append('filterStore', this.filters.filterStore);
+                }
+
+                console.log('Exporting CSV for all transactions...');
+                const response = await fetch(`/merchant-api/api/v2/transactions?${params}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Errore caricamento transazioni');
+                }
+
+                const data = await response.json();
+                const allTransactions = data.content || [];
+
+                if (allTransactions.length === 0) {
+                    alert('Nessuna transazione da esportare');
+                    return;
+                }
+
+                // CSV header
+                const headers = ['Data/Ora', 'POSID', 'Store', 'Tipo', 'Importo', 'PAN', 'Circuito', 'Settlement', 'Esito'];
+
+                // CSV rows
+                const rows = allTransactions.map(tx => {
+                    const esito = tx.settlementFlag === '1'
+                        ? 'Approvato'
+                        : this.getResponseCodeDescription(tx.responseCode);
+
+                    return [
+                        this.formatDate(tx.transactionDate),
+                        tx.posid || '',
+                        tx.storeInsegna || tx.storeRagioneSociale || '',
+                        this.translateTransactionType(tx.transactionType) || '',
+                        tx.amount || 0,
+                        tx.pan || '',
+                        this.translateCircuitCode(tx.cardBrand) || '',
+                        tx.settlementFlag === '1' ? 'OK' : 'NO',
+                        esito
+                    ];
+                });
+
+                // Build CSV content
+                const csvContent = [
+                    headers.join(';'),
+                    ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+                ].join('\n');
+
+                // Create Blob and download
+                const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+
+                const filename = `transazioni_${this.filters.startDate}_${this.filters.endDate}.csv`;
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                console.log('CSV exported:', filename, '- Total records:', allTransactions.length);
+                alert(`Esportate ${allTransactions.length} transazioni`);
+
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Errore durante l\'esportazione: ' + error.message);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // Transaction Type utilities
+        translateTransactionType(code) {
+            const types = {
+                'DAACQU': 'Vendita (Bancomat)',
+                'DSESTO': 'Storno Operatore (Bancomat)',
+                'DSISTO': 'Storno Tecnico (Bancomat)',
+                'DPACQU': 'Preautorizzazione (Bancomat)',
+                'DVACQU': 'Verifica Carta (Bancomat)',
+                'DNACQU': 'Avviso Post-Autorizzazione (Bancomat)',
+                'CAACQU': 'Vendita (Sale)',
+                'CPACQU': 'Preautorizzazione',
+                'CNACQU': 'Avviso Post-Autorizzazione',
+                'CSESTO': 'Storno Operatore',
+                'CSISTO': 'Storno Tecnico',
+                'CXACQU': 'Credito GT-PO',
+                'CXECRE': 'Credito E-Commerce'
+            };
+            return types[code] || code;
+        },
+
+        // Circuit utilities
+        translateCircuitCode(code) {
+            const circuits = {
+                'ED': 'MasterCard Debit Extra-EEA',
+                'EC': 'MasterCard Debit EEA',
+                'MBK': 'MyBank',
+                'MC': 'MasterCard Credit Extra-EEA',
+                'MD': 'MasterCard Debit',
+                'MCC': 'MasterCard Credit EEA',
+                'PAGOBANCOMAT': 'PagoBancomat',
+                'BANCOMAT': 'PagoBancomat',
+                'PagoBancomat': 'PagoBancomat',
+                'VI': 'Visa Credit',
+                'VD': 'Visa Debit',
+                'VPAY': 'V Pay',
+                'VISA': 'Visa',
+                'MASTERCARD': 'MasterCard',
+                'MAESTRO': 'Maestro',
+                'AMEX': 'American Express',
+                'DINERS': 'Diners Club',
+                'JCB': 'JCB'
+            };
+            return circuits[code] || code;
+        },
+
+        getCircuitGroup(code) {
+            if (code === 'PagoBancomat' || code === 'Bancomat' || code === 'PAGOBANCOMAT' || code === 'BANCOMAT') {
+                return 'PagoBancomat';
+            }
+            if (code && (code.startsWith('V') || code === 'VISA' || code === 'VPAY')) {
+                return 'Visa';
+            }
+            if (code && (code.startsWith('M') || code === 'MASTERCARD' || code === 'MAESTRO') && code !== 'MBK') {
+                return 'MasterCard';
+            }
+            if (code === 'MBK' || code === 'MYBANK') {
+                return 'MyBank';
+            }
+            if (code && (code === 'AMEX' || code === 'DINERS' || code === 'JCB')) {
+                return 'Altre Carte';
+            }
+            return 'Altri';
+        },
+
+        getCircuitColor(code) {
+            const group = this.getCircuitGroup(code);
+            const colors = {
+                'PagoBancomat': { bg: 'rgb(255, 99, 132)', text: 'white' },    // Rosso
+                'Visa': { bg: 'rgb(54, 162, 235)', text: 'white' },            // Blu
+                'MasterCard': { bg: 'rgb(255, 205, 86)', text: 'black' },      // Giallo
+                'MyBank': { bg: 'rgb(75, 192, 192)', text: 'white' },          // Verde
+                'Altre Carte': { bg: 'rgb(255, 159, 64)', text: 'white' }      // Arancione
+            };
+            return colors[group] || { bg: 'rgb(108, 117, 125)', text: 'white' };
+        },
+
+        getResponseCodeDescription(code) {
+            const codes = {
+                '00': 'Approvato',
+                '000': 'Approvato',
+                '01': 'Contattare emittente',
+                '02': 'Contattare emittente - Situazione speciale',
+                '03': 'Commerciante non valido',
+                '04': 'Ritirare carta',
+                '05': 'Non autorizzato',
+                '06': 'Errore generico',
+                '07': 'Ritirare carta - Condizioni speciali',
+                '08': 'Approvato con identificazione',
+                '09': 'Richiesta in corso',
+                '10': 'Approvato parzialmente',
+                '11': 'Approvato (VIP)',
+                '12': 'Transazione non valida',
+                '13': 'Importo non valido',
+                '14': 'Numero carta non valido',
+                '15': 'Emittente non valido',
+                '16': 'Approvazione in sospeso',
+                '17': 'Annullamento cliente',
+                '18': 'Errore cliente',
+                '19': 'Riprovare transazione',
+                '20': 'Risposta non valida',
+                '21': 'Nessuna azione intrapresa',
+                '22': 'Sospetto malfunzionamento',
+                '23': 'Commissione transazione non accettabile',
+                '24': 'Aggiornamento file non supportato',
+                '25': 'Record non trovato',
+                '26': 'Record duplicato - Vecchio record sostituito',
+                '27': 'Errore di modifica campo',
+                '28': 'File temporaneamente non disponibile',
+                '29': 'Aggiornamento file impossibile',
+                '30': 'Errore di formato',
+                '31': 'Emittente non supportato',
+                '33': 'Carta scaduta - Ritirare carta',
+                '34': 'Sospetta frode - Ritirare carta',
+                '35': 'Contattare acquirer - Ritirare carta',
+                '36': 'Carta ristretta - Ritirare carta',
+                '37': 'Chiamare sicurezza - Ritirare carta',
+                '38': 'Tentativi PIN superati - Ritirare carta',
+                '39': 'Nessun conto credito',
+                '40': 'Funzione richiesta non supportata',
+                '41': 'Carta smarrita - Ritirare carta',
+                '42': 'Nessun conto universale',
+                '43': 'Carta rubata - Ritirare carta',
+                '44': 'Nessun conto investimento',
+                '51': 'Fondi insufficienti',
+                '52': 'Nessun conto corrente',
+                '53': 'Nessun conto risparmio',
+                '54': 'Carta scaduta',
+                '55': 'PIN errato',
+                '56': 'Carta non presente in archivio',
+                '57': 'Transazione non consentita',
+                '58': 'Transazione non permessa al terminale',
+                '59': 'Sospetta frode',
+                '60': 'Contattare acquirer',
+                '61': 'Importo oltre limite',
+                '62': 'Carta ristretta',
+                '63': 'Violazione sicurezza',
+                '64': 'Importo originale errato',
+                '65': 'Limite transazioni superato',
+                '66': 'Contattare sicurezza acquirer',
+                '67': 'Ritirare carta - ATM',
+                '68': 'Risposta ricevuta troppo tardi',
+                '75': 'Tentativi PIN superati',
+                '76': 'Impossibile localizzare record precedente',
+                '77': 'Incongruenza con transazione originale',
+                '78': 'Account bloccato (primo utilizzo)',
+                '79': 'Ciclo di vita account',
+                '80': 'Data transazione non valida',
+                '81': 'Errore crittografia',
+                '82': 'CVV errato',
+                '83': 'Impossibile verificare PIN',
+                '84': 'Controllo CVV fallito',
+                '85': 'Account in buono stato',
+                '86': 'Impossibile verificare PIN',
+                '87': 'PIN mancante',
+                '88': 'Terminal key error',
+                '89': 'MAC error',
+                '90': 'Cutover in corso',
+                '91': 'Emittente non disponibile',
+                '92': 'Impossibile instradare transazione',
+                '93': 'Violazione legge',
+                '94': 'Transazione duplicata',
+                '95': 'Errore riconciliazione',
+                '96': 'Malfunzionamento sistema',
+                '97': 'Errore di riconciliazione giornaliera',
+                '98': 'Timeout emittente',
+                '99': 'Impossibile completare richiesta',
+                '100': 'Non autorizzato - Generico',
+                '101': 'Carta scaduta o data non valida',
+                '102': 'Sospetta frode - Generico',
+                '103': 'Chiamare emittente - Richiesto pickup',
+                '104': 'Carta ristretta - Generico',
+                '105': 'Chiamare sicurezza',
+                '106': 'Tentativi PIN superati',
+                '107': 'Chiamare emittente',
+                '108': 'Carta smarrita',
+                '109': 'Carta rubata',
+                '110': 'Sospetta frode - Contraffatta',
+                '111': 'Impossibile verificare PIN',
+                '115': 'Funzione non supportata',
+                '116': 'Fondi insufficienti',
+                '117': 'PIN errato',
+                '118': 'Carta non registrata',
+                '119': 'Transazione non permessa',
+                '120': 'Transazione non permessa',
+                '121': 'Limite importo superato',
+                '122': 'Controllo sicurezza fallito',
+                '123': 'Limite frequenza transazioni superato',
+                '125': 'Carta non valida',
+                '126': 'Controllo PIN non valido',
+                '127': 'Errore lunghezza PIN',
+                '200': 'Non autorizzato - Ritirare carta',
+                '201': 'Carta scaduta - Ritirare carta',
+                '202': 'Sospetta frode - Ritirare carta',
+                '203': 'Contattare acquirer - Ritirare carta',
+                '204': 'Carta ristretta - Ritirare carta',
+                '205': 'Chiamare sicurezza - Ritirare carta',
+                '206': 'Tentativi PIN superati - Ritirare carta',
+                '207': 'Condizioni speciali - Ritirare carta',
+                '208': 'Carta smarrita - Ritirare carta',
+                '209': 'Carta rubata - Ritirare carta',
+                '210': 'Sospetta carta contraffatta - Ritirare carta',
+                '400': 'Storno accettato',
+                '902': 'Transazione non valida',
+                '903': 'Reinserire transazione',
+                '904': 'Errore di formato',
+                '906': 'Cutover in corso',
+                '907': 'Emittente o switch inoperativo',
+                '908': 'Destinazione transazione non trovata',
+                '909': 'Malfunzionamento sistema',
+                '910': 'Emittente disconnesso',
+                '911': 'Timeout emittente',
+                '912': 'Emittente non disponibile',
+                '913': 'Trasmissione duplicata',
+                '914': 'Impossibile tracciare transazione originale',
+                '915': 'Errore riconciliazione',
+                '916': 'MAC errato',
+                '920': 'Errore sicurezza',
+                '950': 'Violazione accordo commerciale'
+            };
+            return codes[code] || 'Errore';
+        },
+
+        // Utilities
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('it-IT', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+
+        formatCurrency(amount) {
+            if (amount === null || amount === undefined) return '€0,00';
+            return new Intl.NumberFormat('it-IT', {
+                style: 'currency',
+                currency: 'EUR'
+            }).format(amount);
+        },
+
+        formatDateForInput(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        },
+
+        // Handle stats store search (for many stores)
+        handleStatsStoreSearch() {
+            if (!this.statsFilterStoreSearch) {
+                this.statsFilterStore = '';
+                return;
+            }
+
+            // Find matching store
+            const searchText = this.statsFilterStoreSearch.toLowerCase();
+            const matchingStore = this.stores.find(store => {
+                const storeName = (store.insegna || store.ragioneSociale || '').toLowerCase();
+                const storeAddress = (store.indirizzo || '').toLowerCase();
+                const storeCity = (store.citta || '').toLowerCase();
+                const fullText = `${storeName} ${storeAddress} ${storeCity}`;
+                return fullText.includes(searchText);
+            });
+
+            if (matchingStore) {
+                this.statsFilterStore = matchingStore.terminalIds;
+            } else {
+                this.statsFilterStore = '';
+            }
+        },
+
+        // Statistics page implementation
+        async loadStatisticsCharts() {
+            try {
+                this.loading = true;
+                const token = localStorage.getItem('accessToken');
+
+                // ADMIN WARNING: troppi dati senza filtro
+                if (this.user.isAdmin && !this.statsFilterStore) {
+                    if (this.statsPeriod === '90d') {
+                        alert('⚠️ ATTENZIONE ADMIN: 90 giorni senza filtro negozio sono troppi dati!\nSeleziona un negozio o usa un periodo più corto.');
+                        this.loading = false;
+                        return;
+                    }
+                    if (this.statsPeriod === '30d') {
+                        if (!confirm('⚠️ 30 giorni per TUTTI i negozi potrebbero essere molti dati.\nVuoi continuare?')) {
+                            this.loading = false;
+                            return;
+                        }
+                    }
+                }
+
+                // Calculate date range based on period
+                const endDate = new Date();
+                let startDate = new Date();
+
+                if (this.statsPeriod === '7d') {
+                    startDate.setDate(endDate.getDate() - 7);
+                } else if (this.statsPeriod === '30d') {
+                    startDate.setDate(endDate.getDate() - 30);
+                } else if (this.statsPeriod === '90d') {
+                    startDate.setDate(endDate.getDate() - 90);
+                }
+
+                const startDateStr = this.formatDateForInput(startDate);
+                const endDateStr = this.formatDateForInput(endDate);
+
+                // Fetch ALL transactions for the period (size: 1000000 to get all)
+                const params = new URLSearchParams({
+                    page: 0,
+                    size: 1000000,
+                    startDate: startDateStr,
+                    endDate: endDateStr
+                });
+
+                // Add store filter if selected
+                if (this.statsFilterStore) {
+                    params.append('filterStore', this.statsFilterStore.trim());
+                }
+
+                const url = `/merchant-api/api/v2/transactions?${params}`;
+                console.log('Loading statistics for period:', this.statsPeriod, 'store:', this.statsFilterStore || 'all', startDateStr, endDateStr);
+                console.log('Statistics API URL:', url);
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Errore caricamento statistiche');
+                }
+
+                const data = await response.json();
+                const transactions = data.content || [];
+
+                console.log('Loaded transactions for statistics:', transactions.length);
+                if (this.statsFilterStore) {
+                    console.log('FILTERED by store:', this.statsFilterStore, '- Got', transactions.length, 'transactions');
+                    // Show sample POSIDs from returned data
+                    const samplePosids = [...new Set(transactions.slice(0, 10).map(t => t.posid))];
+                    console.log('Sample POSIDs in filtered data:', samplePosids);
+                } else {
+                    console.log('NO FILTER - Got', transactions.length, 'transactions from all stores');
+                }
+
+                // Calculate statistics
+                console.log('Calculating statistics...');
+                this.calculateStatistics(transactions);
+                console.log('Stats calculated:', this.statsData);
+
+                // Render all charts
+                console.log('Rendering charts with', transactions.length, 'transactions...');
+                this.renderHourlyChart(transactions);
+                this.renderWeekdayChart(transactions);
+                this.renderAmountRangeChart(transactions);
+                this.renderTopBanksChart(transactions);
+                this.renderTransactionTypesChart(transactions);
+                console.log('All charts rendered!');
+
+            } catch (error) {
+                console.error('Statistics error:', error);
+                alert('Errore caricamento statistiche: ' + error.message);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        calculateStatistics(transactions) {
+            if (transactions.length === 0) {
+                this.statsData = {
+                    successRate: '0%',
+                    maxAmount: 0,
+                    minAmount: 0,
+                    peakHour: '--:--'
+                };
+                return;
+            }
+
+            // Success rate (settled transactions)
+            const settledCount = transactions.filter(tx => tx.settlementFlag === '1').length;
+            const successRate = ((settledCount / transactions.length) * 100).toFixed(1);
+            this.statsData.successRate = successRate + '%';
+
+            // Max and min amounts
+            const amounts = transactions.map(tx => tx.amount || 0);
+            this.statsData.maxAmount = Math.max(...amounts);
+            this.statsData.minAmount = Math.min(...amounts.filter(a => a > 0));
+
+            // Peak hour (hour with most transactions)
+            const hourCounts = {};
+            transactions.forEach(tx => {
+                const date = new Date(tx.transactionDate);
+                const hour = date.getHours();
+                hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+            });
+
+            let maxHour = 0;
+            let maxCount = 0;
+            Object.entries(hourCounts).forEach(([hour, count]) => {
+                if (count > maxCount) {
+                    maxCount = count;
+                    maxHour = parseInt(hour);
+                }
+            });
+            this.statsData.peakHour = `${String(maxHour).padStart(2, '0')}:00-${String(maxHour + 1).padStart(2, '0')}:00`;
+        },
+
+        renderHourlyChart(transactions) {
+            console.log('renderHourlyChart called with', transactions.length, 'transactions');
+            const chartDom = document.getElementById('hourlyChart');
+            if (!chartDom) return;
+
+            if (!this.hourlyChart) {
+                this.hourlyChart = echarts.init(chartDom);
+                console.log('Hourly chart initialized');
+            } else {
+                this.hourlyChart.clear(); // Clear previous data
+                console.log('Hourly chart cleared');
+            }
+
+            // Group by hour (0-23)
+            const hourCounts = Array(24).fill(0);
+            const hourVolumes = Array(24).fill(0);
+
+            transactions.forEach(tx => {
+                const date = new Date(tx.transactionDate);
+                const hour = date.getHours();
+                hourCounts[hour]++;
+                hourVolumes[hour] += (tx.amount || 0);
+            });
+
+            const hours = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: (params) => {
+                        let result = `<strong>${params[0].axisValue}</strong><br/>`;
+                        params.forEach(param => {
+                            const value = param.seriesName === 'Volume'
+                                ? this.formatCurrency(param.value)
+                                : param.value + ' tx';
+                            result += `${param.marker} ${param.seriesName}: ${value}<br/>`;
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['Transazioni', 'Volume'],
+                    top: 10
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: hours,
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 10
+                    }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'Transazioni',
+                        position: 'left'
+                    },
+                    {
+                        type: 'value',
+                        name: 'Volume (€)',
+                        position: 'right'
+                    }
+                ],
+                series: [
+                    {
+                        name: 'Transazioni',
+                        type: 'bar',
+                        data: hourCounts,
+                        itemStyle: {
+                            color: '#3b82f6'
+                        }
+                    },
+                    {
+                        name: 'Volume',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: hourVolumes,
+                        smooth: true,
+                        itemStyle: {
+                            color: '#10b981'
+                        }
+                    }
+                ]
+            };
+
+            this.hourlyChart.setOption(option);
+        },
+
+        renderWeekdayChart(transactions) {
+            const chartDom = document.getElementById('weekdayChart');
+            if (!chartDom) return;
+
+            if (!this.weekdayChart) {
+                this.weekdayChart = echarts.init(chartDom);
+            } else {
+                this.weekdayChart.clear(); // Clear previous data
+            }
+
+            // Group by weekday (0=Sunday, 1=Monday, ..., 6=Saturday)
+            const weekdayNames = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+            const weekdayCounts = Array(7).fill(0);
+            const weekdayVolumes = Array(7).fill(0);
+
+            transactions.forEach(tx => {
+                const date = new Date(tx.transactionDate);
+                const weekday = date.getDay();
+                weekdayCounts[weekday]++;
+                weekdayVolumes[weekday] += (tx.amount || 0);
+            });
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: (params) => {
+                        let result = `<strong>${params[0].axisValue}</strong><br/>`;
+                        params.forEach(param => {
+                            const value = param.seriesName === 'Volume'
+                                ? this.formatCurrency(param.value)
+                                : param.value + ' tx';
+                            result += `${param.marker} ${param.seriesName}: ${value}<br/>`;
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['Transazioni', 'Volume'],
+                    top: 10
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: weekdayNames
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'Transazioni',
+                        position: 'left'
+                    },
+                    {
+                        type: 'value',
+                        name: 'Volume (€)',
+                        position: 'right'
+                    }
+                ],
+                series: [
+                    {
+                        name: 'Transazioni',
+                        type: 'bar',
+                        data: weekdayCounts,
+                        itemStyle: {
+                            color: '#8b5cf6'
+                        }
+                    },
+                    {
+                        name: 'Volume',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: weekdayVolumes,
+                        smooth: true,
+                        itemStyle: {
+                            color: '#f59e0b'
+                        }
+                    }
+                ]
+            };
+
+            this.weekdayChart.setOption(option);
+        },
+
+        renderAmountRangeChart(transactions) {
+            const chartDom = document.getElementById('amountRangeChart');
+            if (!chartDom) return;
+
+            if (!this.amountRangeChart) {
+                this.amountRangeChart = echarts.init(chartDom);
+            } else {
+                this.amountRangeChart.clear(); // Clear previous data
+            }
+
+            // Define amount ranges
+            const ranges = [
+                { label: '0-10€', min: 0, max: 10 },
+                { label: '10-50€', min: 10, max: 50 },
+                { label: '50-100€', min: 50, max: 100 },
+                { label: '100-500€', min: 100, max: 500 },
+                { label: '500+€', min: 500, max: Infinity }
+            ];
+
+            const rangeCounts = Array(ranges.length).fill(0);
+
+            transactions.forEach(tx => {
+                const amount = tx.amount || 0;
+                for (let i = 0; i < ranges.length; i++) {
+                    if (amount >= ranges[i].min && amount < ranges[i].max) {
+                        rangeCounts[i]++;
+                        break;
+                    }
+                }
+            });
+
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}: {c} transazioni ({d}%)'
+                },
+                legend: {
+                    orient: 'vertical',
+                    left: 'left'
+                },
+                series: [
+                    {
+                        name: 'Fascia Importo',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: true,
+                        itemStyle: {
+                            borderRadius: 10,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: true,
+                            formatter: '{b}\n{d}%'
+                        },
+                        data: ranges.map((range, i) => ({
+                            name: range.label,
+                            value: rangeCounts[i]
+                        }))
+                    }
+                ],
+                color: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444']
+            };
+
+            this.amountRangeChart.setOption(option);
+        },
+
+        renderTopBanksChart(transactions) {
+            const chartDom = document.getElementById('topBanksChart');
+            if (!chartDom) return;
+
+            if (!this.topBanksChart) {
+                this.topBanksChart = echarts.init(chartDom);
+            } else {
+                this.topBanksChart.clear(); // Clear previous data
+            }
+
+            // Extract BIN (first 6 digits of PAN) and aggregate
+            const binData = {};
+
+            transactions.forEach(tx => {
+                if (tx.pan && tx.pan.length >= 6) {
+                    const bin = tx.pan.substring(0, 6);
+                    if (!binData[bin]) {
+                        binData[bin] = {
+                            count: 0,
+                            volume: 0
+                        };
+                    }
+                    binData[bin].count++;
+                    binData[bin].volume += (tx.amount || 0);
+                }
+            });
+
+            // Sort by volume and get top 10
+            const sortedBins = Object.entries(binData)
+                .sort((a, b) => b[1].volume - a[1].volume)
+                .slice(0, 10);
+
+            const binLabels = sortedBins.map(([bin, _]) => `BIN ${bin}`);
+            const binVolumes = sortedBins.map(([_, data]) => data.volume);
+            const binCounts = sortedBins.map(([_, data]) => data.count);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: (params) => {
+                        const bin = params[0].axisValue;
+                        const volume = this.formatCurrency(params[0].value);
+                        const count = binCounts[params[0].dataIndex];
+                        return `<strong>${bin}</strong><br/>Volume: ${volume}<br/>Transazioni: ${count}`;
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'value'
+                },
+                yAxis: {
+                    type: 'category',
+                    data: binLabels
+                },
+                series: [
+                    {
+                        name: 'Volume',
+                        type: 'bar',
+                        data: binVolumes,
+                        itemStyle: {
+                            color: '#f59e0b'
+                        },
+                        label: {
+                            show: true,
+                            position: 'right',
+                            formatter: (params) => this.formatCurrency(params.value)
+                        }
+                    }
+                ]
+            };
+
+            this.topBanksChart.setOption(option);
+        },
+
+        renderTransactionTypesChart(transactions) {
+            const chartDom = document.getElementById('transactionTypesChart');
+            if (!chartDom) return;
+
+            if (!this.transactionTypesChart) {
+                this.transactionTypesChart = echarts.init(chartDom);
+            } else {
+                this.transactionTypesChart.clear(); // Clear previous data
+            }
+
+            // Group by transaction type
+            const typeCounts = {};
+            const typeVolumes = {};
+
+            transactions.forEach(tx => {
+                const type = this.translateTransactionType(tx.transactionType) || tx.transactionType;
+                typeCounts[type] = (typeCounts[type] || 0) + 1;
+                typeVolumes[type] = (typeVolumes[type] || 0) + (tx.amount || 0);
+            });
+
+            // Sort by count descending
+            const sortedTypes = Object.entries(typeCounts)
+                .sort((a, b) => b[1] - a[1]);
+
+            const typeLabels = sortedTypes.map(([type, _]) => type);
+            const counts = sortedTypes.map(([type, _]) => typeCounts[type]);
+            const volumes = sortedTypes.map(([type, _]) => typeVolumes[type]);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    formatter: (params) => {
+                        let result = `<strong>${params[0].axisValue}</strong><br/>`;
+                        params.forEach(param => {
+                            const value = param.seriesName === 'Volume'
+                                ? this.formatCurrency(param.value)
+                                : param.value + ' tx';
+                            result += `${param.marker} ${param.seriesName}: ${value}<br/>`;
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['Transazioni', 'Volume'],
+                    top: 10
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: typeLabels,
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 10
+                    }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'Transazioni',
+                        position: 'left'
+                    },
+                    {
+                        type: 'value',
+                        name: 'Volume (€)',
+                        position: 'right'
+                    }
+                ],
+                series: [
+                    {
+                        name: 'Transazioni',
+                        type: 'bar',
+                        data: counts,
+                        itemStyle: {
+                            color: '#8b5cf6'
+                        }
+                    },
+                    {
+                        name: 'Volume',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: volumes,
+                        smooth: true,
+                        itemStyle: {
+                            color: '#10b981'
+                        }
+                    }
+                ]
+            };
+
+            this.transactionTypesChart.setOption(option);
+        },
+
+        // ========== ADMIN SECTIONS ==========
+
+        // === USER MANAGEMENT ===
+
+        async loadUsers() {
+            if (!this.user.isAdmin) return;
+
+            this.loading = true;
+            try {
+                const token = localStorage.getItem('accessToken');
+                const searchParam = this.userSearch ? `&search=${encodeURIComponent(this.userSearch)}` : '';
+                const response = await fetch(`${this.apiUrl}/api/v2/admin/users?page=0&size=1000${searchParam}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.users = data.content;
+
+                    // Load stats
+                    const statsResponse = await fetch(`${this.apiUrl}/api/v2/admin/users/stats`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (statsResponse.ok) {
+                        this.userStats = await statsResponse.json();
+                    }
+
+                    // Re-initialize Lucide icons for the new content
+                    this.$nextTick(() => lucide.createIcons());
+                } else {
+                    alert('Errore caricamento utenti');
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                alert('Errore di connessione');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        openCreateUserModal() {
+            this.userModal = {
+                show: true,
+                mode: 'create',
+                user: {
+                    email: '',
+                    bu: '',
+                    ragioneSociale: '',
+                    active: true,
+                    forcePasswordChange: false
+                },
+                password: ''
+            };
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        async openEditUserModal(userId) {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${this.apiUrl}/api/v2/admin/users/${userId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    this.userModal = {
+                        show: true,
+                        mode: 'edit',
+                        user: user,
+                        password: ''
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading user:', error);
+                alert('Errore caricamento utente');
+            }
+        },
+
+        async saveUser() {
+            this.loading = true;
+            try {
+                const token = localStorage.getItem('accessToken');
+
+                if (this.userModal.mode === 'create') {
+                    // Create user
+                    const response = await fetch(`${this.apiUrl}/api/v2/admin/users`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: this.userModal.user.email,
+                            password: this.userModal.password,
+                            bu: this.userModal.user.bu,
+                            ragioneSociale: this.userModal.user.ragioneSociale,
+                            active: this.userModal.user.active,
+                            forcePasswordChange: this.userModal.user.forcePasswordChange
+                        })
+                    });
+
+                    if (response.ok) {
+                        alert('Utente creato con successo');
+                        this.userModal.show = false;
+                        this.loadUsers();
+                    } else {
+                        const error = await response.json();
+                        alert('Errore: ' + (error.message || 'Creazione fallita'));
+                    }
+                } else {
+                    // Update user
+                    const response = await fetch(`${this.apiUrl}/api/v2/admin/users/${this.userModal.user.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: this.userModal.user.email,
+                            bu: this.userModal.user.bu,
+                            ragioneSociale: this.userModal.user.ragioneSociale,
+                            active: this.userModal.user.active,
+                            forcePasswordChange: this.userModal.user.forcePasswordChange
+                        })
+                    });
+
+                    if (response.ok) {
+                        alert('Utente aggiornato con successo');
+                        this.userModal.show = false;
+                        this.loadUsers();
+                    } else {
+                        const error = await response.json();
+                        alert('Errore: ' + (error.message || 'Aggiornamento fallito'));
+                    }
+                }
+            } catch (error) {
+                console.error('Error saving user:', error);
+                alert('Errore di connessione');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async resetUserPassword(userId, email) {
+            const newPassword = prompt(`Reset password per ${email}:\n\nInserisci nuova password (minimo 8 caratteri):`);
+            if (!newPassword || newPassword.length < 8) {
+                if (newPassword !== null) alert('Password troppo corta');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${this.apiUrl}/api/v2/admin/users/${userId}/reset-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ newPassword })
+                });
+
+                if (response.ok) {
+                    alert('Password resetata. L\'utente dovrà cambiarla al prossimo login.');
+                    this.loadUsers();
+                } else {
+                    alert('Errore reset password');
+                }
+            } catch (error) {
+                console.error('Error resetting password:', error);
+                alert('Errore di connessione');
+            }
+        },
+
+        async deleteUser(userId, email) {
+            if (!confirm(`Eliminare l'utente ${email}?\n\nQuesta operazione non può essere annullata.`)) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${this.apiUrl}/api/v2/admin/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    alert('Utente eliminato');
+                    this.loadUsers();
+                } else {
+                    alert('Errore eliminazione utente');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Errore di connessione');
+            }
+        },
+
+        async submitPasswordChange() {
+            this.passwordChangeModal.error = '';
+
+            // Validate passwords match
+            if (this.passwordChangeModal.newPassword !== this.passwordChangeModal.confirmPassword) {
+                this.passwordChangeModal.error = 'Le password non corrispondono';
+                return;
+            }
+
+            // Validate password length
+            if (this.passwordChangeModal.newPassword.length < 8) {
+                this.passwordChangeModal.error = 'La password deve essere di almeno 8 caratteri';
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${this.apiUrl}/api/v2/auth/change-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        oldPassword: this.passwordChangeModal.oldPassword,
+                        newPassword: this.passwordChangeModal.newPassword
+                    })
+                });
+
+                if (response.ok) {
+                    console.log('Password changed successfully');
+
+                    // Check if this is forced password change at first login
+                    const isFirstLogin = this.passwordChangeModal.isFirstLogin;
+
+                    // Close modal and clear fields
+                    this.passwordChangeModal.show = false;
+                    this.passwordChangeModal.oldPassword = '';
+                    this.passwordChangeModal.newPassword = '';
+                    this.passwordChangeModal.confirmPassword = '';
+                    this.passwordChangeModal.isFirstLogin = false;
+
+                    alert('Password cambiata con successo!');
+
+                    if (isFirstLogin) {
+                        // This was forced password change at login - now load dashboard
+                        console.log('Loading dashboard after forced password change');
+
+                        // Set default dates
+                        const daysBack = this.user.isAdmin ? 1 : 30;
+                        const today = new Date();
+                        const startDate = new Date();
+                        startDate.setDate(today.getDate() - daysBack);
+
+                        this.filters.startDate = this.formatDateForInput(startDate);
+                        this.filters.endDate = this.formatDateForInput(today);
+
+                        // NOW set authenticated - this will show the dashboard
+                        this.isAuthenticated = true;
+
+                        // Load dashboard data
+                        setTimeout(() => {
+                            lucide.createIcons();
+                            this.loadStores();
+                            this.loadAllData();
+                        }, 300);
+                    } else {
+                        // Voluntary password change from dashboard - just refresh icons
+                        this.$nextTick(() => {
+                            lucide.createIcons();
+                        });
+                    }
+                } else {
+                    const errorText = await response.text();
+                    this.passwordChangeModal.error = errorText || 'Errore durante il cambio password';
+                }
+            } catch (error) {
+                console.error('Error changing password:', error);
+                this.passwordChangeModal.error = 'Errore di connessione';
+            }
+        },
+
+        // === ACTIVATION CODES ===
+
+        async loadActivationCodes() {
+            this.loading = true;
+            try {
+                const token = localStorage.getItem('accessToken');
+                const params = new URLSearchParams({
+                    page: '0',
+                    size: '1000'
+                });
+
+                if (this.activationCodeFilters.status !== 'all') {
+                    params.append('status', this.activationCodeFilters.status);
+                }
+                if (this.activationCodeFilters.bu) {
+                    params.append('bu', this.activationCodeFilters.bu);
+                }
+                if (this.activationCodeFilters.search) {
+                    params.append('search', this.activationCodeFilters.search);
+                }
+
+                const response = await fetch(`${this.apiUrl}/api/v2/activation-codes?${params}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.activationCodes = data.content;
+
+                    // Load stats
+                    const statsResponse = await fetch(`${this.apiUrl}/api/v2/activation-codes/stats`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (statsResponse.ok) {
+                        this.activationCodeStats = await statsResponse.json();
+                    }
+
+                    // Re-initialize Lucide icons for the new content
+                    this.$nextTick(() => lucide.createIcons());
+                } else {
+                    alert('Errore caricamento codici');
+                }
+            } catch (error) {
+                console.error('Error loading activation codes:', error);
+                alert('Errore di connessione');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async createActivationCode() {
+            if (!this.activationCodeForm.terminalId) {
+                alert('Inserisci Terminal ID');
+                return;
+            }
+
+            this.loading = true;
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${this.apiUrl}/api/v2/activation-codes`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        terminalId: this.activationCodeForm.terminalId,
+                        bu: this.activationCodeForm.bu || this.user.bu,
+                        language: this.activationCodeForm.language,
+                        notes: this.activationCodeForm.notes
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`Codice creato:\n\n${result.code}\n\nTerminal: ${result.storeTerminalId}\nScadenza: ${new Date(result.expiresAt).toLocaleString('it-IT')}`);
+
+                    // Reset form
+                    this.activationCodeForm = {
+                        terminalId: '',
+                        bu: '',
+                        language: 'it',
+                        notes: ''
+                    };
+
+                    this.loadActivationCodes();
+                } else {
+                    const error = await response.json();
+                    alert('Errore: ' + (error.message || 'Creazione fallita'));
+                }
+            } catch (error) {
+                console.error('Error creating activation code:', error);
+                alert('Errore di connessione');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        copyCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Codice copiato: ' + code);
+            });
+        },
+
+        async deleteActivationCode(id, code) {
+            if (!confirm(`Eliminare il codice ${code}?\n\nQuesta azione non può essere annullata.`)) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${this.apiUrl}/api/v2/activation-codes/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    alert('Codice eliminato con successo');
+                    this.loadActivationCodes();
+                } else {
+                    alert('Errore eliminazione codice');
+                }
+            } catch (error) {
+                console.error('Error deleting activation code:', error);
+                alert('Errore di connessione');
+            }
+        },
+
+        // === BIN TABLE ===
+
+        handleBinFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const isCSV = file.name.toLowerCase().endsWith('.csv');
+                const isZIP = file.name.toLowerCase().endsWith('.zip');
+
+                if (!isCSV && !isZIP) {
+                    alert('Seleziona un file CSV o ZIP contenente CSV');
+                    event.target.value = '';
+                    return;
+                }
+                this.binUploadFile = file;
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                const fileType = isZIP ? 'ZIP' : 'CSV';
+                this.binUploadMessage = `File selezionato: ${file.name} (${sizeMB} MB - ${fileType})`;
+            }
+        },
+
+        async uploadBinTable() {
+            if (!this.binUploadFile) {
+                alert('Seleziona un file CSV o ZIP');
+                return;
+            }
+
+            if (!confirm('Aggiornare la BIN Table?\n\nQuesta operazione sostituirà i dati esistenti.')) {
+                return;
+            }
+
+            this.loading = true;
+            this.binUploadProgress = 0;
+            this.binProcessedRecords = 0;
+            this.binTotalRecords = 0;
+            this.binImportStatus = 'uploading';
+            this.binUploadMessage = '📤 Upload file in corso...';
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const formData = new FormData();
+                formData.append('file', this.binUploadFile);
+
+                // Usa endpoint ASINCRONO
+                const response = await fetch(`${this.apiUrl}/api/v2/admin/bin-table/upload-async`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.binImportId = result.importId;
+                    this.binImportStatus = 'processing';
+                    this.binUploadMessage = '⏳ Import in corso...';
+
+                    // Avvia polling per controllare progresso
+                    this.startBinImportPolling();
+                } else {
+                    const contentType = response.headers.get('content-type');
+                    let errorMessage = 'Upload fallito';
+
+                    try {
+                        if (contentType && contentType.includes('application/json')) {
+                            const error = await response.json();
+                            errorMessage = error.message || errorMessage;
+                        } else {
+                            const errorText = await response.text();
+                            errorMessage = errorText || `Errore HTTP ${response.status}`;
+                        }
+                    } catch (e) {
+                        errorMessage = `Errore HTTP ${response.status}`;
+                    }
+
+                    this.binUploadMessage = '❌ Errore: ' + errorMessage;
+                    this.loading = false;
+                }
+            } catch (error) {
+                console.error('Error uploading BIN table:', error);
+                this.binUploadMessage = '❌ Errore di connessione';
+                this.loading = false;
+            }
+        },
+
+        startBinImportPolling() {
+            // Clear existing polling
+            if (this.binImportPolling) {
+                clearInterval(this.binImportPolling);
+            }
+
+            // Poll ogni 2 secondi
+            this.binImportPolling = setInterval(async () => {
+                try {
+                    const token = localStorage.getItem('accessToken');
+                    const response = await fetch(`${this.apiUrl}/api/v2/admin/bin-table/import-status/${this.binImportId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const progress = await response.json();
+
+                        this.binImportStatus = progress.status;
+                        this.binUploadProgress = progress.progressPercentage || 0;
+                        this.binProcessedRecords = progress.processedRecords || 0;
+                        this.binTotalRecords = progress.totalRecords || 0;
+
+                        if (progress.status === 'processing') {
+                            this.binUploadMessage = `⏳ Import in corso: ${this.binProcessedRecords.toLocaleString()} record processati (${this.binUploadProgress.toFixed(1)}%)`;
+                        } else if (progress.status === 'completed') {
+                            this.binUploadProgress = 100;
+                            this.binUploadMessage = `✅ Import completato! ${progress.importedRecords.toLocaleString()} record importati con successo`;
+                            this.binUploadFile = null;
+                            document.getElementById('binFileInput').value = '';
+                            this.stopBinImportPolling();
+                            this.loading = false;
+
+                            setTimeout(() => {
+                                this.binUploadMessage = '';
+                                this.binUploadProgress = 0;
+                                this.binProcessedRecords = 0;
+                                this.binTotalRecords = 0;
+                            }, 8000);
+                        } else if (progress.status === 'failed') {
+                            this.binUploadMessage = `❌ Import fallito: ${progress.errorMessage || 'Errore sconosciuto'}`;
+                            this.stopBinImportPolling();
+                            this.loading = false;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling import status:', error);
+                }
+            }, 2000);
+        },
+
+        stopBinImportPolling() {
+            if (this.binImportPolling) {
+                clearInterval(this.binImportPolling);
+                this.binImportPolling = null;
+            }
+        }
+    };
+}
+
+// Window resize handler for charts
+window.addEventListener('resize', () => {
+    const dashboardInstance = window.Alpine?.store?.dashboard;
+    if (dashboardInstance) {
+        // Dashboard charts
+        if (dashboardInstance.circuitChart) {
+            dashboardInstance.circuitChart.resize();
+        }
+        if (dashboardInstance.trendChart) {
+            dashboardInstance.trendChart.resize();
+        }
+        // Statistics charts
+        if (dashboardInstance.hourlyChart) {
+            dashboardInstance.hourlyChart.resize();
+        }
+        if (dashboardInstance.weekdayChart) {
+            dashboardInstance.weekdayChart.resize();
+        }
+        if (dashboardInstance.amountRangeChart) {
+            dashboardInstance.amountRangeChart.resize();
+        }
+        if (dashboardInstance.topBanksChart) {
+            dashboardInstance.topBanksChart.resize();
+        }
+        if (dashboardInstance.transactionTypesChart) {
+            dashboardInstance.transactionTypesChart.resize();
+        }
+    }
+});

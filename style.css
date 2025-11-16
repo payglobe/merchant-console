@@ -1,0 +1,376 @@
+body {
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    color: #333;
+    padding-bottom: 50px;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+.btn-success {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.btn-success:hover {
+    background-color: #1e7e34;
+    border-color: #1e7e34;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #c82333;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.table thead {
+    background-color: #f8f9fa;
+}
+
+.pagination .page-link {
+    color: #007bff;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.table-colored {
+    background-color: #f0f8ff;
+    /* Azzurro chiaro */
+}
+
+.table td {
+    width: auto;
+}
+
+.footer {
+    background-color: #f8f9fa;
+    padding: 30px 0;
+    margin-top: 50px;
+}
+
+.footer h5 {
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.footer ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.footer ul li {
+    margin-bottom: 10px;
+}
+
+.footer a {
+    color: #333;
+    text-decoration: none;
+}
+
+.footer a:hover {
+    color: #007bff;
+}
+
+.footer p {
+    margin-bottom: 15px;
+}
+
+.footer {
+    /* ... altri stili ... */
+    color: white;
+    background-color: rgb(12, 35, 81);
+}
+
+.navbar {
+    background-color: rgb(12, 35, 81);
+    /* Imposta il colore di sfondo */
+}
+
+.navbar a {
+    color: white;
+    /* Imposta il colore del testo dei link */
+}
+
+.navbar-brand {
+    color: white;
+    /* Imposta il colore del testo del brand */
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+.container {
+    margin-left: 50px;
+}
+
+/* ... your existing CSS ... */
+
+.pagination-container {
+    width: 100%;
+    /* Make the container full width */
+    overflow-x: auto;
+    /* Enable horizontal scrolling */
+    display: flex;
+    /* Use flexbox for centering */
+    justify-content: center;
+    /* Center the pagination */
+    padding: 10px 0;
+}
+
+.pagination {
+    flex-wrap: nowrap;
+    /* Prevent pagination links from wrapping */
+    white-space: nowrap;
+}
+
+.pagination li {
+    display: inline-block;
+}
+
+#myTable td:nth-child(8) {
+    /* Target the 8th column (Importo) */
+    min-width: 100px;
+    white-space: nowrap;
+    /* Prevent text from wrapping */
+    text-align: right;
+    /* Align text to the right */
+}
+
+/* ... your existing CSS ... */
+
+/* Table Styles */
+#myTable {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* More modern font */
+    font-size: 14px;
+    /* Smaller font size */
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#myTable th,
+#myTable td {
+    padding: 6px;
+    /* Reduced padding */
+    border: 1px solid #dee2e6;
+}
+
+#myTable th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    /* Make header text bold */
+}
+
+/* ... altri stili ... */
+
+.navbar {
+    /* Imposta il colore di sfondo della navbar */
+    padding: 10px;
+    /* Aggiungi un po' di padding alla navbar */
+    display: flex;
+    align-items: center;
+}
+
+.navbar-brand {
+    color: white;
+    /* Imposta il colore del testo del brand */
+    font-weight: bold;
+    /* Rendi il testo del brand in grassetto */
+    font-size: 24px;
+    /* Aumenta la dimensione del testo del brand */
+}
+
+.navbar-nav {
+    margin-left: auto;
+    /* Sposta i link a destra */
+    display: flex;
+    align-items: center;
+}
+
+.nav-link {
+    color: white;
+    /* Imposta il colore del testo dei link */
+    margin-left: 20px;
+    /* Aggiungi un po' di spazio tra i link */
+}
+
+.nav-link:hover {
+    color: #cccccc;
+    /* Cambia il colore del testo al passaggio del mouse */
+}
+
+.navbar-toggler-icon {
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    vertical-align: middle;
+    content: "";
+    background: white;
+    /* background-size: 100% 100%; */
+}
+
+.navbar-toggler-icon {
+    color: white;
+    /* background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3e%3cpath stroke='rgba(255, 255, 255, 1)' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");*/
+}
+
+.form-control {
+    border-radius: 0.5rem;
+    /* Angoli arrotondati */
+    border: 1px solid #ced4da;
+    /* Bordo leggermente grigio */
+    padding: 0.5rem 1rem;
+    /* Spaziatura interna */
+    font-size: 1rem;
+    /* Dimensione del font */
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    /* Transizioni fluide */
+}
+
+.form-control:focus {
+    border-color: #80bdff;
+    /* Bordo blu quando è attivo */
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    /* Ombreggiatura blu quando è attivo */
+}
+
+.form-label {
+    margin-bottom: 0.5rem;
+    /* Spazio sotto l'etichetta */
+    font-weight: 500;
+    /* Grassetto leggero */
+}
+
+.btn-primary {
+    background-color: #007bff;
+    /* Colore di sfondo blu */
+    border-color: #007bff;
+    /* Colore del bordo blu */
+    border-radius: 0.5rem;
+    /* Angoli arrotondati */
+    padding: 0.5rem 1rem;
+    /* Spaziatura interna */
+    font-size: 1rem;
+    /* Dimensione del font */
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    /* Transizioni fluide */
+}
+
+.btn-primary:hover {
+    background-color: #0069d9;
+    /* Colore di sfondo blu più scuro al passaggio del mouse */
+    border-color: #0062cc;
+    /* Colore del bordo blu più scuro al passaggio del mouse */
+}
+
+.btn-primary:focus,
+.btn-primary.focus {
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.5);
+    /* Ombreggiatura blu quando è attivo */
+}
+
+.footer {
+    background-color: rgb(12, 35, 81);
+    color: white;
+    padding: 30px 0;
+    margin-top: 50px;
+    font-size: 0.9em;
+    /* Ridotto la dimensione del font */
+}
+
+/* Media query per schermi piccoli (cellulari) */
+@media (max-width: 768px) {
+    #myTable {
+        display: block;
+        /* Rende la tabella un blocco */
+        overflow-x: auto;
+        /* Aggiunge lo scroll orizzontale */
+        white-space: nowrap;
+    }
+
+    #myTable thead {
+        display: none;
+        /* Nasconde l'intestazione della tabella */
+    }
+
+    #myTable tbody,
+    #myTable tr,
+    #myTable td {
+        display: block;
+        /* Rende ogni elemento un blocco */
+        width: 100%;
+        /* Larghezza al 100% */
+        box-sizing: border-box;
+    }
+
+    #myTable tr {
+        margin-bottom: 10px;
+        /* Spazio tra le righe */
+        border: 1px solid #dee2e6;
+        /* Aggiunge un bordo alle righe */
+    }
+
+    #myTable td {
+        padding: 8px;
+        text-align: left;
+        /* Allinea il testo a sinistra */
+        border: none;
+        /* Rimuove i bordi delle celle */
+        position: relative;
+        padding-left: 50%;
+    }
+
+    #myTable td::before {
+        position: absolute;
+        left: 10px;
+        width: 45%;
+        padding-right: 10px;
+        white-space: nowrap;
+        content: attr(data-label);
+        /* Mostra il nome della colonna */
+        font-weight: bold;
+    }
+
+    #myTable td:nth-child(5),
+    /* Circuito */
+    #myTable td:nth-child(6),
+    /* PAN */
+    #myTable td:nth-child(11),
+    /* insegna */
+    #myTable td:nth-child(12)
+
+    /* indirizzo */
+        {
+        display: none;
+        /* Nasconde le colonne specificate */
+    }
+}
+// MONEY
+
