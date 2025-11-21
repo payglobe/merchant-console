@@ -3,7 +3,7 @@
 
   <!-- Modern Footer -->
   <footer style="
-    background: var(--gradient-dark);
+    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
     color: white;
     padding: var(--space-8) var(--space-6);
     margin-top: var(--space-10);
@@ -26,14 +26,11 @@
               <div style="font-size: var(--text-sm); opacity: 0.8;">Merchant Console MC5 v3.0</div>
             </div>
           </div>
-          <p style="font-size: var(--text-sm); opacity: 0.8; line-height: 1.6;">
-            Piattaforma di gestione merchant moderna e potente. Design system ultra-moderno senza Bootstrap.
-          </p>
         </div>
 
         <!-- Quick Links -->
         <div>
-          <h4 style="font-weight: var(--font-bold); font-size: var(--text-base); margin-bottom: var(--space-4);">
+          <h4 style="font-weight: var(--font-bold); font-size: var(--text-base); margin-bottom: var(--space-4); color: white;">
             Link Rapidi
           </h4>
           <ul style="list-style: none; padding: 0; margin: 0;">
@@ -54,55 +51,6 @@
             </li>
           </ul>
         </div>
-
-        <!-- Tech Stack -->
-        <div>
-          <h4 style="font-weight: var(--font-bold); font-size: var(--text-base); margin-bottom: var(--space-4);">
-            Tech Stack
-          </h4>
-          <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
-            <span style="
-              background: rgba(255, 255, 255, 0.1);
-              backdrop-filter: blur(10px);
-              padding: var(--space-1) var(--space-3);
-              border-radius: var(--radius-full);
-              font-size: var(--text-xs);
-              font-weight: var(--font-semibold);
-            ">Alpine.js 3.x</span>
-            <span style="
-              background: rgba(255, 255, 255, 0.1);
-              backdrop-filter: blur(10px);
-              padding: var(--space-1) var(--space-3);
-              border-radius: var(--radius-full);
-              font-size: var(--text-xs);
-              font-weight: var(--font-semibold);
-            ">ApexCharts</span>
-            <span style="
-              background: rgba(255, 255, 255, 0.1);
-              backdrop-filter: blur(10px);
-              padding: var(--space-1) var(--space-3);
-              border-radius: var(--radius-full);
-              font-size: var(--text-xs);
-              font-weight: var(--font-semibold);
-            ">CSS Grid</span>
-            <span style="
-              background: rgba(255, 255, 255, 0.1);
-              backdrop-filter: blur(10px);
-              padding: var(--space-1) var(--space-3);
-              border-radius: var(--radius-full);
-              font-size: var(--text-xs);
-              font-weight: var(--font-semibold);
-            ">Glassmorphism</span>
-            <span style="
-              background: rgba(255, 255, 255, 0.1);
-              backdrop-filter: blur(10px);
-              padding: var(--space-1) var(--space-3);
-              border-radius: var(--radius-full);
-              font-size: var(--text-xs);
-              font-weight: var(--font-semibold);
-            ">NO Bootstrap</span>
-          </div>
-        </div>
       </div>
 
       <!-- Copyright -->
@@ -116,9 +64,6 @@
       ">
         <p style="margin: 0;">
           © 2018-2025 <strong>PayGlobe</strong> - All rights reserved.
-        </p>
-        <p style="margin: var(--space-2) 0 0 0;">
-          Powered by <strong>MC5 v3.0 Design System</strong> 🚀
         </p>
       </div>
     </div>

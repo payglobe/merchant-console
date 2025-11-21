@@ -244,6 +244,11 @@ function dashboard() {
         internazionaleComm: 0,
         pagoBancomat: 0,
 
+        // Chart instances
+        distributionChartInstance: null,
+        transactionsChartInstance: null,
+        schemesChartInstance: null,
+
         formatCurrency(value) {
             return new Intl.NumberFormat('it-IT', {
                 style: 'currency',
@@ -271,6 +276,11 @@ function dashboard() {
         },
 
         renderDistributionChart() {
+            // Destroy existing chart if it exists
+            if (this.distributionChartInstance) {
+                this.distributionChartInstance.destroy();
+            }
+
             const options = {
                 series: [this.internazionale, this.internazionaleComm, this.pagoBancomat],
                 chart: {
@@ -318,11 +328,16 @@ function dashboard() {
                 }
             };
 
-            const chart = new ApexCharts(document.querySelector("#distributionChart"), options);
-            chart.render();
+            this.distributionChartInstance = new ApexCharts(document.querySelector("#distributionChart"), options);
+            this.distributionChartInstance.render();
         },
 
         async loadTransactionsChart() {
+            // Destroy existing chart if it exists
+            if (this.transactionsChartInstance) {
+                this.transactionsChartInstance.destroy();
+            }
+
             const response = await fetch("bar-transazioni.php");
             const data = await response.json();
 
@@ -413,11 +428,16 @@ function dashboard() {
                 }
             };
 
-            const chart = new ApexCharts(document.querySelector("#transactionsChart"), options);
-            chart.render();
+            this.transactionsChartInstance = new ApexCharts(document.querySelector("#transactionsChart"), options);
+            this.transactionsChartInstance.render();
         },
 
         async loadSchemesChart() {
+            // Destroy existing chart if it exists
+            if (this.schemesChartInstance) {
+                this.schemesChartInstance.destroy();
+            }
+
             const response = await fetch("pie-schemas.php?WHERE=<?php echo urlencode($query); ?>");
             const data = await response.json();
 
@@ -488,8 +508,8 @@ function dashboard() {
                 }]
             };
 
-            const chart = new ApexCharts(document.querySelector("#schemesChart"), options);
-            chart.render();
+            this.schemesChartInstance = new ApexCharts(document.querySelector("#schemesChart"), options);
+            this.schemesChartInstance.render();
         }
     }
 }
