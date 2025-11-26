@@ -4,16 +4,24 @@
 - morize tabelle errori
 - save
 - merorize memorizza nel progetto e in deploy!
-host pgbe2: user:pguser
+
+## SERVER DI PRODUZIONE
+- **pgbe** (PRODUZIONE): pguser@pgbe:/var/www/html/payglobe/mc5
+- pgbe2: user:pguser (server secondario)
+- IMPORTANTE: Deploy MC5 su pgbe, NON pgbe2 o pgbesrv01
+
 Front end react deploy in
 /opt/merchant-console/frontend/ oppure /var/www/html/merchant/
 Front end Alpine.js (vecchio dashboard) in
 /var/www/html/merchant/frontend/dashboard/
+Front end MC5 PayGlobe in
+/var/www/html/payglobe/mc5 (su pgbe)
 Back end spring-boot
 /opt/merchant-api/
 Backend service: sudo service merchant-api start/stop/restart
 - memorize claude have access with pguser on target diretoty do not use TMP
 - NON riavviare mai il backend automaticamente - lasciare che lo faccia l'utente con sudo service merchant-api restart
+- Apache restart: solo utente ha permessi sudo (NON riavviare automaticamente)
 
 ## BIN Table Upload - Implementato
 - Endpoint SINCRONO: POST /api/v2/admin/bin-table/upload (può dare timeout nginx 503)
@@ -51,3 +59,6 @@ Frontend (dashboard.js v2.3.6):
 - NO timeout 503 durante import lunghi (600k+ record)
 - memorize BIN TABLE
 - memorize sudo service   merchant-api start
+- mc4 directory su pgbe intoccabile
+- deploy su pgbe!
+- memorizza deploy mc5 /var/www/html/payglobe/mc5

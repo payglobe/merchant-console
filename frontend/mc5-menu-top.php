@@ -163,10 +163,11 @@ body {
 }
 
 /* Dropdown Menu */
-.nav-item.dropdown:hover .dropdown-menu {
+.nav-item.dropdown.open .dropdown-menu {
   display: block;
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .dropdown-menu {
@@ -183,7 +184,8 @@ body {
   transform: translateY(-10px);
   transition: all var(--transition-base);
   border: 1px solid var(--border-color);
-  z-index: 1001;
+  z-index: 10001;
+  pointer-events: none;
 }
 
 .dropdown-item {
@@ -539,3 +541,46 @@ if ($role == "Reader" || $role == "Admin") {
 
   <!-- Main Content -->
   <div class="main-content">
+
+<script>
+// Dropdown menu handler - click based instead of hover for better UX
+document.addEventListener('DOMContentLoaded', function() {
+  const dropdownToggles = document.querySelectorAll('.nav-item.dropdown > .nav-link');
+
+  dropdownToggles.forEach(toggle => {
+    toggle.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const dropdown = this.parentElement;
+      const isOpen = dropdown.classList.contains('open');
+
+      // Close all other dropdowns
+      document.querySelectorAll('.nav-item.dropdown.open').forEach(d => {
+        if (d !== dropdown) {
+          d.classList.remove('open');
+        }
+      });
+
+      // Toggle current dropdown
+      dropdown.classList.toggle('open');
+    });
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.nav-item.dropdown')) {
+      document.querySelectorAll('.nav-item.dropdown.open').forEach(d => {
+        d.classList.remove('open');
+      });
+    }
+  });
+
+  // Prevent dropdown from closing when clicking inside dropdown menu
+  document.querySelectorAll('.dropdown-menu').forEach(menu => {
+    menu.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  });
+});
+</script>

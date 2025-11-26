@@ -179,19 +179,18 @@ function dashboard() {
                     this.user = JSON.parse(userStr);
                     console.log('User authenticated:', this.user.email);
 
-                    // Set default dates based on role
-                    const daysBack = this.user.isAdmin ? 1 : 30;
+                    // Set default dates: startDate = yesterday, endDate = today
                     const today = new Date();
-                    const startDate = new Date();
-                    startDate.setDate(today.getDate() - daysBack);
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
 
-                    this.filters.startDate = this.formatDateForInput(startDate);
+                    this.filters.startDate = this.formatDateForInput(yesterday);
                     this.filters.endDate = this.formatDateForInput(today);
 
                     console.log('Dates initialized:', {
                         startDate: this.filters.startDate,
                         endDate: this.filters.endDate,
-                        daysBack: daysBack
+                        daysBack: 1
                     });
 
                     // Set authenticated AFTER preparing everything
@@ -287,13 +286,12 @@ function dashboard() {
                 }
 
                 // Normal login flow (no password change required)
-                // Set default dates
-                const daysBack = this.user.isAdmin ? 1 : 30;
+                // Set default dates: startDate = yesterday, endDate = today
                 const today = new Date();
-                const startDate = new Date();
-                startDate.setDate(today.getDate() - daysBack);
+                const yesterday = new Date();
+                yesterday.setDate(today.getDate() - 1);
 
-                this.filters.startDate = this.formatDateForInput(startDate);
+                this.filters.startDate = this.formatDateForInput(yesterday);
                 this.filters.endDate = this.formatDateForInput(today);
 
                 // Set authenticated and load data
@@ -393,6 +391,13 @@ function dashboard() {
 
                 console.log('Stats response status:', response.status);
 
+                // Handle 403 Forbidden (session expired)
+                if (response.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Stats error response:', errorText);
@@ -451,6 +456,13 @@ function dashboard() {
 
                 console.log('Transactions response status:', response.status);
 
+                // Handle 403 Forbidden (session expired)
+                if (response.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Transactions error response:', errorText);
@@ -476,23 +488,43 @@ function dashboard() {
         async loadCharts() {
             try {
                 const token = localStorage.getItem('accessToken');
-                const params = new URLSearchParams({
+
+                // Circuit chart uses filter dates
+                const circuitParams = new URLSearchParams({
                     startDate: this.filters.startDate,
                     endDate: this.filters.endDate
                 });
 
                 if (this.filters.filterStore) {
-                    params.append('filterStore', this.filters.filterStore);
+                    circuitParams.append('filterStore', this.filters.filterStore);
                 }
 
-                console.log('Loading charts with params:', {
+                // Trend chart ALWAYS uses start of month to today (independent of filters)
+                const today = new Date();
+                const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+                const trendParams = new URLSearchParams({
+                    startDate: this.formatDateForInput(startOfMonth),
+                    endDate: this.formatDateForInput(today)
+                });
+
+                if (this.filters.filterStore) {
+                    trendParams.append('filterStore', this.filters.filterStore);
+                }
+
+                console.log('Loading charts - Circuit params:', {
                     startDate: this.filters.startDate,
                     endDate: this.filters.endDate,
                     filterStore: this.filters.filterStore
                 });
+                console.log('Loading charts - Trend params (start of month to today):', {
+                    startDate: this.formatDateForInput(startOfMonth),
+                    endDate: this.formatDateForInput(today),
+                    filterStore: this.filters.filterStore
+                });
 
-                const circuitUrl = `/merchant-api/api/v2/transactions/circuits?${params}`;
-                const trendUrl = `/merchant-api/api/v2/transactions/trend?${params}`;
+                const circuitUrl = `/merchant-api/api/v2/transactions/circuits?${circuitParams}`;
+                const trendUrl = `/merchant-api/api/v2/transactions/trend?${trendParams}`;
                 console.log('Circuit URL:', circuitUrl);
                 console.log('Trend URL:', trendUrl);
 
@@ -508,6 +540,13 @@ function dashboard() {
 
                 console.log('Circuit response status:', circuitResponse.status);
                 console.log('Trend response status:', trendResponse.status);
+
+                // Handle 403 Forbidden (session expired)
+                if (circuitResponse.status === 403 || trendResponse.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
 
                 if (!circuitResponse.ok || !trendResponse.ok) {
                     const circuitError = !circuitResponse.ok ? await circuitResponse.text() : null;
@@ -546,6 +585,13 @@ function dashboard() {
                         'Authorization': `Bearer ${token}`
                     }
                 });
+
+                // Handle 403 Forbidden (session expired)
+                if (response.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
 
                 if (!response.ok) throw new Error('Failed to load stores');
 
@@ -773,6 +819,13 @@ function dashboard() {
                         'Authorization': `Bearer ${token}`
                     }
                 });
+
+                // Handle 403 Forbidden (session expired)
+                if (response.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
 
                 if (!response.ok) {
                     throw new Error('Errore caricamento transazioni');
@@ -1170,6 +1223,13 @@ function dashboard() {
                         'Authorization': `Bearer ${token}`
                     }
                 });
+
+                // Handle 403 Forbidden (session expired)
+                if (response.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
 
                 if (!response.ok) {
                     throw new Error('Errore caricamento statistiche');
@@ -1696,6 +1756,13 @@ function dashboard() {
                     }
                 });
 
+                // Handle 403 Forbidden (session expired)
+                if (response.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
+
                 if (response.ok) {
                     const data = await response.json();
                     this.users = data.content;
@@ -1926,13 +1993,12 @@ function dashboard() {
                         // This was forced password change at login - now load dashboard
                         console.log('Loading dashboard after forced password change');
 
-                        // Set default dates
-                        const daysBack = this.user.isAdmin ? 1 : 30;
+                        // Set default dates: startDate = yesterday, endDate = today
                         const today = new Date();
-                        const startDate = new Date();
-                        startDate.setDate(today.getDate() - daysBack);
+                        const yesterday = new Date();
+                        yesterday.setDate(today.getDate() - 1);
 
-                        this.filters.startDate = this.formatDateForInput(startDate);
+                        this.filters.startDate = this.formatDateForInput(yesterday);
                         this.filters.endDate = this.formatDateForInput(today);
 
                         // NOW set authenticated - this will show the dashboard
@@ -1984,6 +2050,13 @@ function dashboard() {
                 const response = await fetch(`${this.apiUrl}/api/v2/activation-codes?${params}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                // Handle 403 Forbidden (session expired)
+                if (response.status === 403) {
+                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    this.logout();
+                    return;
+                }
 
                 if (response.ok) {
                     const data = await response.json();
