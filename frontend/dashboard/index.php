@@ -130,6 +130,13 @@ header("Expires: 0");
                         </span>
                     </button>
                 </form>
+
+                <!-- Password Dimenticata Link -->
+                <div class="mt-4 text-center">
+                    <a href="reset-password.php" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+                        Password dimenticata?
+                    </a>
+                </div>
             </div>
 
             <!-- Footer -->
@@ -1227,8 +1234,11 @@ header("Expires: 0");
                 const hasToken = !!localStorage.getItem('accessToken');
                 const wasLoaded = sessionStorage.getItem('dashboardLoaded');
 
-                // If token just appeared and we haven't reloaded yet
-                if (!hadToken && hasToken && !wasLoaded) {
+                // Check if password change modal is active (don't reload during forced password change)
+                const passwordChangeActive = sessionStorage.getItem('passwordChangeInProgress');
+
+                // If token just appeared and we haven't reloaded yet (and no password change modal)
+                if (!hadToken && hasToken && !wasLoaded && !passwordChangeActive) {
                     console.log('[Auto-reload] Login detected, reloading page...');
                     sessionStorage.setItem('dashboardLoaded', 'true');
                     clearInterval(pollInterval);
