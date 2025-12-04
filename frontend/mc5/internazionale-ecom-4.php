@@ -144,7 +144,7 @@ if (!isset($_POST['WHERE'])){
         </p>
       </div>
       <div style="display: flex; gap: var(--space-2);">
-        <button @click="exportToExcel()" class="btn btn-primary">
+        <button @click="exportExcel()" class="btn btn-primary">
           <i class="fas fa-file-excel"></i>
           <span>Esporta Excel</span>
         </button>
@@ -273,6 +273,8 @@ if (!isset($_POST['WHERE'])){
             <th>PAN</th>
             <th>Circuito</th>
             <th>Codice Aut.</th>
+            <th>Order ID</th>
+            <th>Email Cliente</th>
             <th>Negozio</th>
           </tr>
         </thead>
@@ -297,11 +299,13 @@ if (!isset($_POST['WHERE'])){
               <td><span class="mono" x-text="row.pan"></span></td>
               <td><span style="font-weight: 600;" x-text="row.tag4f"></span></td>
               <td><span class="mono" x-text="row.codiceAutorizzativo"></span></td>
+              <td><span class="mono" style="font-size: 11px;" x-text="row.orderID || '-'"></span></td>
+              <td><span style="font-size: 12px; color: var(--primary-600);" x-text="row.email || '-'"></span></td>
               <td x-text="row.insegna"></td>
             </tr>
           </template>
           <tr x-show="filteredData.length === 0">
-            <td colspan="8" style="text-align: center; padding: var(--space-8); color: var(--text-secondary);">
+            <td colspan="10" style="text-align: center; padding: var(--space-8); color: var(--text-secondary);">
               Nessuna transazione e-Commerce internazionale trovata
             </td>
           </tr>
@@ -362,7 +366,7 @@ function app() {
     async loadData() {
       this.loading = true;
       try {
-        const res = await fetch('scripts/tracciato_array.php?where=<?php echo urlencode($query); ?>');
+        const res = await fetch('scripts/tracciato_ecommerce_array.php?where=<?php echo urlencode($query); ?>');
         const json = await res.json();
         console.log('e-Commerce internazionale data:', json);
 
@@ -399,6 +403,8 @@ function app() {
             localita: row[17] || '',
             prov: row[18] || '',
             cap: row[19] || '',
+            orderID: row[20] || '',
+            email: row[21] || '',
             approved: approved,
             paymentType: paymentType
           };
@@ -495,67 +501,77 @@ function app() {
       }).format(val);
     },
 
-    exportToExcel() {
-      // Prepare data for export with all available fields
-      const exportData = this.filteredData.map(row => ({
-        'Tipo': row.paymentType === 'ecommerce' ? 'e-Commerce' : 'Bonifico A2P',
-        'Codifica Stab': row.codificaStab,
-        'Terminal ID': row.terminalID,
-        'Modello POS': row.modelloPos,
-        'Domestico': row.domestico,
-        'PAN': row.pan,
-        'Circuito (Tag 4F)': row.tag4f,
-        'Data Operazione': row.dataOperazione,
-        'Ora Operazione': row.oraOperazione,
-        'Importo (EUR)': row.importo,
-        'Codice Autorizzativo': row.codiceAutorizzativo,
-        'Acquirer': row.acquirer,
-        'Flag Log': row.flagLog,
-        'Actin Code': row.actinCode,
-        'Tipo Operazione': row.tipoOperazione,
-        'Insegna': row.insegna,
-        'Ragione Sociale': row.ragioneSociale,
-        'Indirizzo': row.indirizzo,
-        'Località': row.localita,
-        'Provincia': row.prov,
-        'CAP': row.cap,
-        'Stato': row.approved ? 'Approvata' : 'Rifiutata'
+    exportExcel() {
+      // Use SheetJS to generate real .xlsx file (like MC4 DataTables)
+      const headers = ['MID', 'Operazione', 'PAN', 'Data', 'Ora', 'Importo', 'Codice Aut.',
+                       'Canale', 'Flag', 'Esito', 'Insegna', 'CAP', 'Località', 'Provincia',
+                       'Negozio', 'Indirizzo', 'Acquirer', 'Circuito', 'Order ID', 'Nome Cliente', 'Tipo'];
+
+      // Map data to export format (same as MC4)
+      const exportData = this.filteredData.map(d => ({
+        'MID': d.codificaStab,
+        'Operazione': d.tipoOperazione,
+        'PAN': d.pan,
+        'Data': d.dataOperazione,
+        'Ora': d.oraOperazione,
+        'Importo': d.importo,
+        'Codice Aut.': d.codiceAutorizzativo,
+        'Canale': d.tipoOperazione,
+        'Flag': d.flagLog,
+        'Esito': d.actinCode,
+        'Insegna': d.insegna,
+        'CAP': d.cap,
+        'Località': d.localita,
+        'Provincia': d.prov,
+        'Negozio': d.ragioneSociale,
+        'Indirizzo': d.indirizzo,
+        'Acquirer': d.acquirer,
+        'Circuito': d.tag4f,
+        'Order ID': d.orderID,
+        'Nome Cliente': d.email,
+        'Tipo': d.paymentType === 'a2p' ? 'Pay By Link' : 'e-Commerce'
       }));
 
-      // Create CSV content
-      const headers = Object.keys(exportData[0] || {});
-      const csvContent = [
-        headers.join(','),
-        ...exportData.map(row =>
-          headers.map(header => {
-            const value = row[header] || '';
-            // Escape commas and quotes in CSV
-            return typeof value === 'string' && (value.includes(',') || value.includes('"'))
-              ? `"${value.replace(/"/g, '""')}"`
-              : value;
-          }).join(',')
-        )
-      ].join('\n');
+      // Create workbook
+      const ws = XLSX.utils.json_to_sheet(exportData, { header: headers });
 
-      // Create download link
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 15 }, // MID
+        { wch: 12 }, // Operazione
+        { wch: 20 }, // PAN
+        { wch: 12 }, // Data
+        { wch: 10 }, // Ora
+        { wch: 12 }, // Importo
+        { wch: 12 }, // Codice Aut
+        { wch: 12 }, // Canale
+        { wch: 6 },  // Flag
+        { wch: 6 },  // Esito
+        { wch: 20 }, // Insegna
+        { wch: 8 },  // CAP
+        { wch: 15 }, // Località
+        { wch: 6 },  // Provincia
+        { wch: 25 }, // Negozio
+        { wch: 30 }, // Indirizzo
+        { wch: 10 }, // Acquirer
+        { wch: 12 }, // Circuito
+        { wch: 20 }, // Order ID
+        { wch: 30 }, // Nome Cliente
+        { wch: 12 }  // Tipo
+      ];
 
-      const filename = `ecommerce_internazionale_${new Date().toISOString().split('T')[0]}.csv`;
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    },
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'e-Commerce');
 
-    exportExcel() {
-      window.location.href = 'scripts/export_excel.php?table=tracciato_pos&where=<?php echo urlencode($query); ?>';
+      // Generate filename with date
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `eCommerce_Internazionale_${today}.xlsx`);
     }
   };
 }
 </script>
+
+<!-- SheetJS for Excel export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
 <?php require_once('footer-v3.php'); ?>

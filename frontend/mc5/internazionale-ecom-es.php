@@ -12,17 +12,16 @@ if (!session_id() && !headers_sent()) {
    session_start();
 }
 
-// Build query - tracciato_pos_es VIEW doesn't have tipoOperazione column
-// We filter for Internazionale only (e-Commerce is implicit for Spain data)
+// Build query - Use tracciatoes table for Spain e-Commerce
 if (!isset($_POST['WHERE'])){
     $date = date('Y-m-d', mktime(0, 0, 0, date("m"), date("d")-1, date("Y")));
-    $query = "dataOperazione >= '$date' AND domestico = 'Internazionale'";
+    $query = "dataOperazione >= '$date' AND domestico = 'Internazionale' AND tipoOperazione = 'e-Commerce'";
     $dallaData = $date;
     $allaData = $date;
 } else {
     $dallaData = $_POST['DALLADATA'];
     $allaData = $_POST['ALLADATA'];
-    $query = "dataOperazione >= '$dallaData' AND dataOperazione <= '$allaData' AND domestico = 'Internazionale'";
+    $query = "dataOperazione >= '$dallaData' AND dataOperazione <= '$allaData' AND domestico = 'Internazionale' AND tipoOperazione = 'e-Commerce'";
 }
 ?>
 
@@ -195,10 +194,7 @@ if (!isset($_POST['WHERE'])){
               </div>
             </template>
           </button>
-          <button type="button" @click="exportExcel()" class="btn btn-success">
-            <i class="fas fa-file-excel"></i> Excel
-          </button>
-        </div>
+                  </div>
       </div>
     </form>
   </div>
@@ -274,6 +270,8 @@ if (!isset($_POST['WHERE'])){
             <th>PAN</th>
             <th>Circuito</th>
             <th>Codice Aut.</th>
+            <th>Order ID</th>
+            <th>Cardholder</th>
             <th>Negozio</th>
           </tr>
         </thead>
@@ -298,11 +296,13 @@ if (!isset($_POST['WHERE'])){
               <td><span class="mono" x-text="row.pan"></span></td>
               <td><span style="font-weight: 600;" x-text="row.tag4f"></span></td>
               <td><span class="mono" x-text="row.codiceAutorizzativo"></span></td>
+              <td><span class="mono" style="font-size: 11px;" x-text="row.orderID"></span></td>
+              <td><span style="font-size: 12px;" x-text="row.cardholdername"></span></td>
               <td x-text="row.insegna"></td>
             </tr>
           </template>
           <tr x-show="filteredData.length === 0">
-            <td colspan="8" style="text-align: center; padding: var(--space-8); color: var(--text-secondary);">
+            <td colspan="10" style="text-align: center; padding: var(--space-8); color: var(--text-secondary);">
               Nessuna transazione e-Commerce internazionale trovata
             </td>
           </tr>
@@ -363,7 +363,7 @@ function app() {
     async loadData() {
       this.loading = true;
       try {
-        const res = await fetch('scripts/tracciato_vista_server_es.php?where=<?php echo urlencode($query); ?>');
+        const res = await fetch('scripts/tracciatoes_array.php?where=<?php echo urlencode($query); ?>');
         const json = await res.json();
         console.log('e-Commerce internazionale data:', json);
 
@@ -393,13 +393,15 @@ function app() {
             acquirer: row[10] || '',
             flagLog: row[11] || '',
             actinCode: row[12] || '',
-            tipoOperazione: 'e-Commerce',  // Not in ES VIEW, set manually
-            insegna: row[13] || '',
-            ragioneSociale: row[14] || '',  // Ragione_Sociale in ES
-            indirizzo: row[15] || '',
-            localita: row[16] || '',
-            prov: row[17] || '',
-            cap: row[18] || '',
+            tipoOperazione: row[13] || 'e-Commerce',
+            insegna: row[14] || '',
+            ragioneSociale: row[15] || '',
+            indirizzo: row[16] || '',
+            localita: row[17] || '',
+            prov: row[18] || '',
+            cap: row[19] || '',
+            orderID: row[20] || '',
+            cardholdername: row[21] || '',
             approved: approved,
             paymentType: paymentType
           };
@@ -497,66 +499,76 @@ function app() {
     },
 
     exportToExcel() {
-      // Prepare data for export with all available fields
-      const exportData = this.filteredData.map(row => ({
-        'Tipo': row.paymentType === 'ecommerce' ? 'e-Commerce' : 'Bonifico A2P',
-        'Codifica Stab': row.codificaStab,
-        'Terminal ID': row.terminalID,
-        'Modello POS': row.modelloPos,
-        'Domestico': row.domestico,
-        'PAN': row.pan,
-        'Circuito (Tag 4F)': row.tag4f,
-        'Data Operazione': row.dataOperazione,
-        'Ora Operazione': row.oraOperazione,
-        'Importo (EUR)': row.importo,
-        'Codice Autorizzativo': row.codiceAutorizzativo,
-        'Acquirer': row.acquirer,
-        'Flag Log': row.flagLog,
-        'Actin Code': row.actinCode,
-        'Tipo Operazione': row.tipoOperazione,
-        'Insegna': row.insegna,
-        'Ragione Sociale': row.ragioneSociale,
-        'Indirizzo': row.indirizzo,
-        'Località': row.localita,
-        'Provincia': row.prov,
-        'CAP': row.cap,
-        'Stato': row.approved ? 'Approvata' : 'Rifiutata'
+      // Use SheetJS to generate real .xlsx file (like MC4 DataTables)
+      const headers = ['MID', 'Operazione', 'PAN', 'Data', 'Ora', 'Importo', 'Codice Aut.',
+                       'Canale', 'Flag', 'Esito', 'Insegna', 'CAP', 'Località', 'Provincia',
+                       'Negozio', 'Indirizzo', 'Acquirer', 'Circuito', 'Order ID', 'Nome Cliente', 'Tipo'];
+
+      // Map data to export format (same as MC4)
+      const exportData = this.filteredData.map(d => ({
+        'MID': d.codificaStab,
+        'Operazione': d.tipoOperazione,
+        'PAN': d.pan,
+        'Data': d.dataOperazione,
+        'Ora': d.oraOperazione,
+        'Importo': d.importo,
+        'Codice Aut.': d.codiceAutorizzativo,
+        'Canale': d.tipoOperazione,
+        'Flag': d.flagLog,
+        'Esito': d.actinCode,
+        'Insegna': d.insegna,
+        'CAP': d.cap,
+        'Località': d.localita,
+        'Provincia': d.prov,
+        'Negozio': d.ragioneSociale,
+        'Indirizzo': d.indirizzo,
+        'Acquirer': d.acquirer,
+        'Circuito': d.tag4f,
+        'Order ID': d.orderID || '',
+        'Nome Cliente': d.email || '',
+        'Tipo': d.paymentType === 'a2p' ? 'Pay By Link' : 'e-Commerce'
       }));
 
-      // Create CSV content
-      const headers = Object.keys(exportData[0] || {});
-      const csvContent = [
-        headers.join(','),
-        ...exportData.map(row =>
-          headers.map(header => {
-            const value = row[header] || '';
-            // Escape commas and quotes in CSV
-            return typeof value === 'string' && (value.includes(',') || value.includes('"'))
-              ? `"${value.replace(/"/g, '""')}"`
-              : value;
-          }).join(',')
-        )
-      ].join('\n');
+      // Create workbook
+      const ws = XLSX.utils.json_to_sheet(exportData, { header: headers });
 
-      // Create download link
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 15 }, // MID
+        { wch: 12 }, // Operazione
+        { wch: 20 }, // PAN
+        { wch: 12 }, // Data
+        { wch: 10 }, // Ora
+        { wch: 12 }, // Importo
+        { wch: 12 }, // Codice Aut
+        { wch: 12 }, // Canale
+        { wch: 6 },  // Flag
+        { wch: 6 },  // Esito
+        { wch: 20 }, // Insegna
+        { wch: 8 },  // CAP
+        { wch: 15 }, // Località
+        { wch: 6 },  // Provincia
+        { wch: 25 }, // Negozio
+        { wch: 30 }, // Indirizzo
+        { wch: 10 }, // Acquirer
+        { wch: 12 }, // Circuito
+        { wch: 20 }, // Order ID
+        { wch: 30 }, // Nome Cliente
+        { wch: 12 }  // Tipo
+      ];
 
-      const filename = `ecommerce_internazionale_${new Date().toISOString().split('T')[0]}.csv`;
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    },
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'e-Commerce España');
 
-    exportExcel() {
-      window.location.href = 'scripts/export_excel.php?table=tracciato_pos_es&where=<?php echo urlencode($query); ?>';
+      // Generate filename with date
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `eCommerce_Internazionale_ES_${today}.xlsx`);
     }
   };
 }
 </script>
+
+<!-- SheetJS for Excel export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
 <?php require_once('footer-v3.php'); ?>

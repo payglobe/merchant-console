@@ -37,12 +37,12 @@ if ($table === 'stores') {
     fputcsv($output, ['Terminal ID', 'Ragione Sociale', 'Insegna', 'Indirizzo', 'Città', 'CAP', 'Provincia', 'Paese']);
 
 } elseif ($table === 'tracciato_pos') {
-    // Export transactions
+    // Export transactions - EXCLUDE e-Commerce (PV and SDT are NOT e-Commerce!)
     $sql = "SELECT codificaStab, terminalID, Modello_pos, domestico, pan, tag4f,
                    dataOperazione, oraOperazione, importo, codiceAutorizzativo,
                    acquirer, flagLog, actinCode, insegna, localita
             FROM tracciato_pos
-            WHERE $where
+            WHERE $where AND (tipoOperazione IS NULL OR tipoOperazione <> 'e-Commerce')
             ORDER BY dataOperazione DESC, oraOperazione DESC
             LIMIT 50000";
 
@@ -50,6 +50,49 @@ if ($table === 'stores') {
     fputcsv($output, ['Codifica Stab', 'Terminal ID', 'Modello POS', 'Domestico', 'PAN', 'Tag 4F',
                       'Data Operazione', 'Ora Operazione', 'Importo', 'Codice Autorizzativo',
                       'Acquirer', 'Flag Log', 'Actin Code', 'Insegna', 'Località']);
+
+} elseif ($table === 'tracciato_ecommerce') {
+    // Export E-COMMERCE transactions - SAME FORMAT AS MC4 tracciato.html
+    // Include ALL fields from MC4: Mid, Pan, Data, Ora, Importo, Codice AZ, Canale,
+    // Insegna, Cap, Localita, Provincia, Negozio (RagioneSociale), Indirizzo, Acquirer, Brand, OrderID, Nome (email)
+    // Plus: PayByLink indicator for transactions
+    $sql = "SELECT
+                   t.codificaStab,
+                   t.tipoRiep as tipoOperazioneDettaglio,
+                   t.pan,
+                   DATE_FORMAT(t.dataOperazione, '%d/%m/%Y') as dataOperazione,
+                   TIME_FORMAT(t.oraOperazione, '%H:%i:%s') as oraOperazione,
+                   t.importo,
+                   t.codiceAutorizzativo,
+                   t.tipoOperazione,
+                   t.flagLog,
+                   t.actinCode,
+                   COALESCE(t.insegna, s.Insegna, '') as insegna,
+                   COALESCE(t.cap, s.cap, '') as cap,
+                   COALESCE(t.localita, s.citta, '') as localita,
+                   COALESCE(t.provincia, s.prov, '') as provincia,
+                   COALESCE(t.ragioneSociale, s.Ragione_Sociale, '') as ragioneSociale,
+                   COALESCE(t.indirizzo, s.indirizzo, '') as indirizzo,
+                   t.acquirer,
+                   t.tag4f as brand,
+                   COALESCE(t.orderID, '') as orderID,
+                   UPPER(COALESCE(t.cardholdername, '')) as cardholdername,
+                   CASE
+                       WHEN t.codificaStab = 'MC_IRIS_A2P' THEN 'Pay By Link'
+                       WHEN t.codificaStab LIKE '%PBL%' THEN 'Pay By Link'
+                       WHEN t.codificaStab LIKE '%PAYBYLINK%' THEN 'Pay By Link'
+                       ELSE 'e-Commerce'
+                   END as tipoTransazione
+            FROM tracciato t
+            LEFT JOIN stores s ON s.TerminalID = t.terminalID
+            WHERE $where
+            ORDER BY t.dataOperazione DESC, t.oraOperazione DESC
+            LIMIT 100000";
+
+    // Headers - same as MC4 + PayByLink indicator
+    fputcsv($output, ['MID', 'Operazione', 'PAN', 'Data', 'Ora', 'Importo', 'Codice Aut.',
+                      'Canale', 'Flag', 'Esito', 'Insegna', 'CAP', 'Località', 'Provincia',
+                      'Negozio', 'Indirizzo', 'Acquirer', 'Circuito', 'Order ID', 'Nome Cliente', 'Tipo']);
 
 } elseif ($table === 'tracciato_pos_es') {
     // Export transactions SPAIN (from tracciato_pos_es VIEW with stores JOIN)
