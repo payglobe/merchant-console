@@ -90,4 +90,57 @@ public class AdminController {
     public static class TestPasswordMatchResponse {
         private boolean matches;
     }
+
+    /**
+     * Info sistema (memoria, uptime, etc.)
+     *
+     * GET /api/v2/admin/system-info
+     */
+    @GetMapping("/system-info")
+    public ResponseEntity<?> getSystemInfo() {
+        Runtime runtime = Runtime.getRuntime();
+
+        long maxMemory = runtime.maxMemory();       // -Xmx
+        long totalMemory = runtime.totalMemory();   // Heap allocato
+        long freeMemory = runtime.freeMemory();     // Heap libero
+        long usedMemory = totalMemory - freeMemory; // Heap usato
+
+        // Uptime JVM
+        long uptimeMs = java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime();
+        long uptimeSeconds = uptimeMs / 1000;
+        long hours = uptimeSeconds / 3600;
+        long minutes = (uptimeSeconds % 3600) / 60;
+        long seconds = uptimeSeconds % 60;
+        String uptime = String.format("%dh %dm %ds", hours, minutes, seconds);
+
+        // Processors
+        int processors = runtime.availableProcessors();
+
+        return ResponseEntity.ok(new SystemInfoResponse(
+            formatBytes(usedMemory),
+            formatBytes(totalMemory),
+            formatBytes(maxMemory),
+            Math.round((double) usedMemory / maxMemory * 100),
+            uptime,
+            processors
+        ));
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
+        return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class SystemInfoResponse {
+        private String usedMemory;      // Heap usato
+        private String allocatedMemory; // Heap allocato (totalMemory)
+        private String maxMemory;       // Heap max (-Xmx)
+        private long usedPercent;       // Percentuale usata
+        private String uptime;          // Tempo di esecuzione
+        private int processors;         // CPU cores
+    }
 }

@@ -51,6 +51,12 @@ function dashboard() {
         statsPeriod: '7d', // Default 7 giorni (per admin è già tanto)
         statsFilterStore: '',
         statsFilterStoreSearch: '',
+        // Esclusione negozi dalle statistiche (solo admin)
+        excludedStores: [], // Array di ragioni sociali escluse
+        excludeStoreSearch: '', // Ricerca negozio da escludere
+        excludeStoreResults: [], // Risultati ricerca (max 10)
+        showExcludePanel: false, // Mostra/nascondi pannello esclusione
+        excludeSearchTimeout: null, // Debounce timer
         statsData: {
             successRate: '0%',
             maxAmount: 0,
@@ -64,6 +70,7 @@ function dashboard() {
         transactionTypesChart: null,
         geoDistributionChart: null,
         geoDistribution: null,
+        topRangeContributors: [], // Top contributors per le 2 fasce di importo principali
 
         // Admin sections
         users: [],
@@ -234,6 +241,7 @@ function dashboard() {
                             console.log('isAuthenticated:', this.isAuthenticated);
                             console.log('Dashboard element visible:', document.getElementById('circuitChart') !== null);
                             lucide.createIcons();
+                            this.loadExcludedStores(); // Carica esclusioni salvate
                             this.loadStores();
                             this.loadAllData();
                         }, 300);
@@ -1346,6 +1354,114 @@ function dashboard() {
             }
         },
 
+        // === ESCLUSIONE NEGOZI DALLE STATISTICHE (SOLO ADMIN) ===
+
+        // Carica esclusioni da localStorage
+        loadExcludedStores() {
+            try {
+                const saved = localStorage.getItem('excludedStores');
+                if (saved) {
+                    this.excludedStores = JSON.parse(saved);
+                    console.log('Loaded excluded stores:', this.excludedStores.length);
+                }
+            } catch (e) {
+                console.error('Error loading excluded stores:', e);
+                this.excludedStores = [];
+            }
+        },
+
+        // Salva esclusioni in localStorage
+        saveExcludedStores() {
+            try {
+                localStorage.setItem('excludedStores', JSON.stringify(this.excludedStores));
+                console.log('Saved excluded stores:', this.excludedStores.length);
+            } catch (e) {
+                console.error('Error saving excluded stores:', e);
+            }
+        },
+
+        // Ricerca negozi da escludere (con debounce)
+        searchStoreToExclude() {
+            // Pulisci timeout precedente
+            if (this.excludeSearchTimeout) {
+                clearTimeout(this.excludeSearchTimeout);
+            }
+
+            // Se meno di 3 caratteri, non cercare
+            if (!this.excludeStoreSearch || this.excludeStoreSearch.length < 3) {
+                this.excludeStoreResults = [];
+                return;
+            }
+
+            // Debounce: aspetta 300ms dopo l'ultimo tasto
+            this.excludeSearchTimeout = setTimeout(() => {
+                const searchText = this.excludeStoreSearch.toLowerCase().trim();
+
+                // Cerca tra gli stores (max 10 risultati)
+                this.excludeStoreResults = this.stores
+                    .filter(store => {
+                        const storeName = store.ragioneSociale || store.insegna || '';
+                        const storeAddress = store.indirizzo || '';
+                        const storeCity = store.citta || '';
+                        const fullText = `${storeName} ${storeAddress} ${storeCity}`.toLowerCase();
+
+                        // Non mostrare se già escluso
+                        if (this.excludedStores.includes(storeName)) {
+                            return false;
+                        }
+
+                        return fullText.includes(searchText);
+                    })
+                    .slice(0, 10)
+                    .map(store => ({
+                        name: store.ragioneSociale || store.insegna || 'N/D',
+                        address: store.indirizzo || '',
+                        city: store.citta || '',
+                        terminalIds: store.terminalIds
+                    }));
+
+                console.log('Search results:', this.excludeStoreResults.length);
+            }, 300);
+        },
+
+        // Aggiungi negozio all'esclusione
+        addExcludedStore(storeName) {
+            if (!storeName || this.excludedStores.includes(storeName)) return;
+
+            this.excludedStores.push(storeName);
+            this.saveExcludedStores();
+
+            // Pulisci ricerca
+            this.excludeStoreSearch = '';
+            this.excludeStoreResults = [];
+
+            // Ricarica statistiche
+            this.loadStatisticsCharts();
+        },
+
+        // Rimuovi negozio dall'esclusione
+        removeExcludedStore(storeName) {
+            const index = this.excludedStores.indexOf(storeName);
+            if (index > -1) {
+                this.excludedStores.splice(index, 1);
+                this.saveExcludedStores();
+
+                // Ricarica statistiche
+                this.loadStatisticsCharts();
+            }
+        },
+
+        // Pulisci tutte le esclusioni
+        clearAllExcludedStores() {
+            if (this.excludedStores.length === 0) return;
+
+            if (confirm('Rimuovere tutte le ' + this.excludedStores.length + ' esclusioni?')) {
+                this.excludedStores = [];
+                this.saveExcludedStores();
+                this.loadStatisticsCharts();
+            }
+        },
+
         // Statistics page implementation
         async loadStatisticsCharts() {
             try {
@@ -1405,7 +1521,7 @@ function dashboard() {
                 }
 
                 const data = await response.json();
-                const transactions = data.content || [];
+                let transactions = data.content || [];
 
                 console.log('Loaded transactions for statistics:', transactions.length);
                 if (this.statsFilterStore) {
@@ -1415,6 +1531,17 @@ function dashboard() {
                     console.log('Sample POSIDs in filtered data:', samplePosids);
                 } else {
                     console.log('NO FILTER - Got', transactions.length, 'transactions from all stores');
+                }
+
+                // APPLICA ESCLUSIONI (solo admin)
+                if (this.user?.isAdmin && this.excludedStores.length > 0) {
+                    const beforeCount = transactions.length;
+                    transactions = transactions.filter(tx => {
+                        const storeName = tx.storeRagioneSociale || tx.storeInsegna || '';
+                        return !this.excludedStores.includes(storeName);
+                    });
+                    const excludedCount = beforeCount - transactions.length;
+                    console.log(`Excluded ${excludedCount} transactions from ${this.excludedStores.length} stores. Remaining: ${transactions.length}`);
                 }
 
                 // Calculate statistics
@@ -1431,8 +1558,8 @@ function dashboard() {
                 this.renderTransactionTypesChart(transactions);
                 console.log('All charts rendered!');
 
-                // Load Geo Distribution (separate API call)
-                this.loadGeoDistribution();
+                // Load Geo Distribution (passa transazioni filtrate per rispettare esclusioni)
+                this.loadGeoDistribution(transactions);
 
             } catch (error) {
                 if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
@@ -1687,15 +1814,49 @@ function dashboard() {
             ];
 
             const rangeCounts = Array(ranges.length).fill(0);
+            // Track contributors (ragione sociale) per fascia
+            const rangeContributors = ranges.map(() => ({}));
 
             transactions.forEach(tx => {
                 const amount = tx.amount || 0;
+                const storeName = tx.storeRagioneSociale || tx.storeInsegna || 'N/D';
                 for (let i = 0; i < ranges.length; i++) {
                     if (amount >= ranges[i].min && amount < ranges[i].max) {
                         rangeCounts[i]++;
+                        // Traccia contributo per negozio in questa fascia
+                        if (!rangeContributors[i][storeName]) {
+                            rangeContributors[i][storeName] = 0;
+                        }
+                        rangeContributors[i][storeName]++;
                         break;
                     }
                 }
+            });
+
+            // Trova le 2 fasce con più transazioni e i loro top 5 contributors
+            const rangesWithCounts = ranges.map((range, i) => ({
+                label: range.label,
+                count: rangeCounts[i],
+                percentage: ((rangeCounts[i] / transactions.length) * 100).toFixed(1),
+                contributors: rangeContributors[i],
+                index: i
+            }));
+
+            // Ordina per count decrescente e prendi le top 2
+            const top2Ranges = [...rangesWithCounts].sort((a, b) => b.count - a.count).slice(0, 2);
+
+            // Per ogni fascia top, calcola i top 5 contributors
+            this.topRangeContributors = top2Ranges.map(range => {
+                const contributors = Object.entries(range.contributors)
+                    .map(([name, count]) => ({ name, count, percentage: ((count / range.count) * 100).toFixed(1) }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 5);
+                return {
+                    label: range.label,
+                    percentage: range.percentage,
+                    totalCount: range.count,
+                    contributors
+                };
             });
 
             const option = {
@@ -1914,7 +2075,7 @@ function dashboard() {
 
         // ========== GEO DISTRIBUTION ==========
 
-        async loadGeoDistribution() {
+        async loadGeoDistribution(filteredTransactions = null) {
             try {
                 // Calculate date range based on period (same as loadStatisticsCharts)
                 const endDate = new Date();
@@ -1932,8 +2093,15 @@ function dashboard() {
                 const endDateStr = this.formatDateForInput(endDate);
                 const storeParam = this.statsFilterStore ? `&filterStore=${encodeURIComponent(this.statsFilterStore)}` : '';
 
+                // Aggiungi esclusioni se presenti (solo admin)
+                let excludeParam = '';
+                if (this.user?.isAdmin && this.excludedStores.length > 0) {
+                    excludeParam = this.excludedStores.map(s => `&excludeStores=${encodeURIComponent(s)}`).join('');
+                    console.log('Geo distribution: applying', this.excludedStores.length, 'exclusions');
+                }
+
                 const response = await this.fetchWithAuth(
-                    `${this.apiUrl}/api/v2/transactions/geo-distribution?startDate=${startDateStr}&endDate=${endDateStr}${storeParam}`
+                    `${this.apiUrl}/api/v2/transactions/geo-distribution?startDate=${startDateStr}&endDate=${endDateStr}${storeParam}${excludeParam}`
                 );
 
                 if (response.ok) {
@@ -1946,6 +2114,53 @@ function dashboard() {
                 if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Error loading geo distribution:', error);
             }
+        },
+
+        // Calcola geo distribution dalle transazioni (usato quando ci sono esclusioni)
+        calculateGeoDistributionFromTransactions(transactions) {
+            // Circuiti domestici italiani
+            const domesticCircuits = ['PAGOBANCOMAT', 'BANCOMAT', 'POSTAMAT', 'PAY'];
+
+            // Paesi EU (codici ISO 2 lettere)
+            const euCountries = ['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI',
+                                 'FR', 'GR', 'HR', 'HU', 'IE', 'LT', 'LU', 'LV', 'MT', 'NL',
+                                 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
+
+            let domestic = { count: 0, amount: 0 };
+            let eu = { count: 0, amount: 0 };
+            let extraEu = { count: 0, amount: 0 };
+            let unknown = { count: 0, amount: 0 };
+
+            transactions.forEach(tx => {
+                const amount = parseFloat(tx.amount) || 0;
+                const circuit = (tx.cardBrand || tx.circuitCode || '').toUpperCase();
+                const country = (tx.cardCountry || tx.issuerCountry || '').toUpperCase();
+
+                // Logica di classificazione
+                if (country === 'IT' || country === 'ITA' || country === '380') {
+                    // Carta italiana
+                    domestic.count++;
+                    domestic.amount += amount;
+                } else if (domesticCircuits.some(dc => circuit.includes(dc))) {
+                    // Circuito domestico italiano
+                    domestic.count++;
+                    domestic.amount += amount;
+                } else if (country && euCountries.includes(country)) {
+                    // Carta EU
+                    eu.count++;
+                    eu.amount += amount;
+                } else if (country && country.length >= 2) {
+                    // Carta extra EU (ha un paese ma non è IT né EU)
+                    extraEu.count++;
+                    extraEu.amount += amount;
+                } else {
+                    // Sconosciuto
+                    unknown.count++;
+                    unknown.amount += amount;
+                }
+            });
+
+            return { domestic, eu, extraEu, unknown };
         },
 
         renderGeoDistributionChart() {

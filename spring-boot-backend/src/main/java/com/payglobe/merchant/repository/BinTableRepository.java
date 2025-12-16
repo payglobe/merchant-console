@@ -24,6 +24,18 @@ public interface BinTableRepository extends JpaRepository<BinTable, Long> {
     Optional<BinTable> findByBin(@Param("bin") Long bin);
 
     /**
+     * Trova BIN usando range numerico sul prefisso (fallback quando non c'è match esatto)
+     * Cerca record dove start_bin è nel range del prefisso BIN a 6 cifre
+     * Usa l'indice numerico su start_bin per performance ottimali
+     *
+     * @param binMin Valore minimo del range (es. 5355740000000000000)
+     * @param binMax Valore massimo del range (es. 5355749999999999999)
+     * @return BinTable corrispondente al prefisso
+     */
+    @Query(value = "SELECT * FROM bin_table WHERE start_bin >= :binMin AND start_bin <= :binMax LIMIT 1", nativeQuery = true)
+    Optional<BinTable> findByBinRange(@Param("binMin") Long binMin, @Param("binMax") Long binMax);
+
+    /**
      * Conta record per paese
      */
     long countByCountryCode(String countryCode);
@@ -33,4 +45,23 @@ public interface BinTableRepository extends JpaRepository<BinTable, Long> {
      */
     @Query("SELECT COUNT(bt) > 0 FROM BinTable bt")
     boolean hasData();
+
+    /**
+     * Trova BIN usando LIKE sul prefisso (6 cifre) - VELOCE!
+     * Cerca record dove start_bin inizia con il BIN6
+     *
+     * @param bin6 Prime 6 cifre del PAN (es. "535574")
+     * @return BinTable corrispondente al prefisso
+     */
+    @Query(value = "SELECT * FROM bin_table WHERE CAST(start_bin AS CHAR) LIKE CONCAT(:bin6, '%') LIMIT 1", nativeQuery = true)
+    Optional<BinTable> findByBinPrefix(@Param("bin6") String bin6);
+
+    /**
+     * Carica TUTTI i BIN con country_code per warm-up cache
+     * Restituisce solo le prime 6 cifre di start_bin e il country_code
+     *
+     * @return Lista di Object[] dove [0]=bin6 (String), [1]=country_code (String)
+     */
+    @Query(value = "SELECT DISTINCT LEFT(CAST(start_bin AS CHAR), 6) as bin6, country_code FROM bin_table WHERE country_code IS NOT NULL", nativeQuery = true)
+    java.util.List<Object[]> findAllBinCountryPairs();
 }

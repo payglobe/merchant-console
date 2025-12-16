@@ -197,6 +197,18 @@ header("Expires: 0");
                                     <i data-lucide="shield-check" class="w-3 h-3"></i>
                                     <span>ADMIN</span>
                                 </span>
+                                <!-- System Info Badge (Admin Only) -->
+                                <span x-show="systemInfo" x-cloak class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded flex items-center space-x-2" :title="'Uptime: ' + (systemInfo?.uptime || '-') + ' | Max: ' + (systemInfo?.maxMemory || '-')">
+                                    <span class="flex items-center">
+                                        <i data-lucide="database" class="w-3 h-3 mr-1"></i>
+                                        <span x-text="(systemInfo?.usedMemory || '-') + ' (' + (systemInfo?.usedPercent || 0) + '%)'"></span>
+                                    </span>
+                                    <span class="text-gray-400">|</span>
+                                    <span class="flex items-center">
+                                        <i data-lucide="cpu" class="w-3 h-3 mr-1"></i>
+                                        <span x-text="(systemInfo?.processors || '-') + ' cores'"></span>
+                                    </span>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -537,6 +549,58 @@ header("Expires: 0");
                             Rimuovi filtro
                         </button>
                     </div>
+
+                    <!-- ESCLUSIONE NEGOZI (Solo Admin) -->
+                    <div x-show="user?.isAdmin" class="mt-6 pt-4 border-t border-gray-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-semibold text-gray-700 flex items-center">
+                                <i data-lucide="eye-off" class="w-4 h-4 mr-2 text-red-500"></i>
+                                Escludi Negozi dalle Statistiche
+                            </h3>
+                            <button x-show="excludedStores.length > 0"
+                                    @click="clearAllExcludedStores()"
+                                    class="text-xs text-red-600 hover:text-red-800 underline">
+                                Rimuovi tutte (<span x-text="excludedStores.length"></span>)
+                            </button>
+                        </div>
+
+                        <!-- Ricerca negozio da escludere -->
+                        <div class="relative mb-3">
+                            <input type="text"
+                                   x-model="excludeStoreSearch"
+                                   @input="searchStoreToExclude()"
+                                   placeholder="Cerca ragione sociale da escludere (min 3 caratteri)..."
+                                   class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition text-sm">
+                            <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-2.5"></i>
+                        </div>
+
+                        <!-- Risultati ricerca -->
+                        <div x-show="excludeStoreResults.length > 0" class="mb-3 bg-gray-50 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
+                            <template x-for="store in excludeStoreResults" :key="store.terminalIds">
+                                <div @click="addExcludedStore(store.name)"
+                                     class="px-3 py-2 hover:bg-red-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition">
+                                    <div class="font-medium text-gray-800 text-sm" x-text="store.name"></div>
+                                    <div class="text-xs text-gray-500" x-text="store.address + (store.city ? ' - ' + store.city : '')"></div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Negozi esclusi (chips) -->
+                        <div x-show="excludedStores.length > 0" class="flex flex-wrap gap-2">
+                            <template x-for="(storeName, idx) in excludedStores" :key="idx">
+                                <span class="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
+                                    <span x-text="storeName.length > 30 ? storeName.substring(0, 30) + '...' : storeName" :title="storeName"></span>
+                                    <button @click="removeExcludedStore(storeName)" class="ml-1 hover:text-red-600 transition">
+                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                    </button>
+                                </span>
+                            </template>
+                        </div>
+
+                        <p x-show="excludedStores.length === 0" class="text-xs text-gray-500 italic">
+                            Nessun negozio escluso. Cerca e clicca per escludere.
+                        </p>
+                    </div>
                 </div>
 
                 <!-- Advanced Stats Cards -->
@@ -632,6 +696,44 @@ header("Expires: 0");
                     </div>
                 </div>
 
+                <!-- Top Contributors per Fascia di Importo -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" x-show="topRangeContributors.length > 0">
+                    <template x-for="(range, idx) in topRangeContributors" :key="idx">
+                        <div class="glass-effect rounded-2xl shadow-lg p-6 animate-slide-in-up" :style="'animation-delay: ' + (0.75 + idx * 0.05) + 's'">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+                                <span class="flex items-center">
+                                    <i data-lucide="store" class="w-5 h-5 mr-2 text-purple-600"></i>
+                                    Top 5 Negozi - Fascia <span x-text="range.label" class="ml-1 text-purple-600"></span>
+                                </span>
+                                <span class="text-sm font-normal bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
+                                    <span x-text="range.percentage"></span>% del totale
+                                </span>
+                            </h3>
+                            <div class="space-y-3">
+                                <template x-for="(contrib, cIdx) in range.contributors" :key="cIdx">
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                                        <div class="flex items-center">
+                                            <span class="w-6 h-6 flex items-center justify-center bg-purple-600 text-white text-xs font-bold rounded-full mr-3" x-text="cIdx + 1"></span>
+                                            <span class="font-medium text-gray-800 truncate max-w-xs" x-text="contrib.name" :title="contrib.name"></span>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-sm text-gray-600" x-text="contrib.count.toLocaleString('it-IT') + ' tx'"></span>
+                                            <span class="text-sm font-semibold text-purple-600" x-text="contrib.percentage + '%'"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="range.contributors.length === 0">
+                                    <div class="text-center text-gray-500 py-4">Nessun dato disponibile</div>
+                                </template>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-gray-200 text-sm text-gray-500 flex justify-between">
+                                <span>Totale transazioni fascia:</span>
+                                <span class="font-semibold" x-text="range.totalCount.toLocaleString('it-IT')"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
                 <!-- Geo Distribution (Domestic/UE/Extra UE) -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                     <!-- Geo Distribution Pie Chart -->
@@ -658,13 +760,73 @@ header("Expires: 0");
                     </div>
                 </div>
 
-                <!-- Transaction Types Comparison -->
-                <div class="glass-effect rounded-2xl shadow-lg p-6 animate-slide-in-up" style="animation-delay: 0.8s">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <i data-lucide="git-compare" class="w-5 h-5 mr-2 text-purple-600"></i>
-                        Confronto Tipi di Transazione
-                    </h3>
-                    <div id="transactionTypesChart" class="w-full" style="height: 400px;"></div>
+                <!-- TOP 5 NEGOZI PER AREA GEOGRAFICA (Solo Admin) -->
+                <div x-show="user?.isAdmin && geoDistribution?.topDomesticStores" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <!-- Top 5 Domestic -->
+                    <div class="glass-effect rounded-2xl shadow-lg p-6 animate-slide-in-up" style="animation-delay: 0.85s">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <i data-lucide="home" class="w-5 h-5 mr-2 text-green-600"></i>
+                            Top 5 Carte Italiane
+                        </h3>
+                        <div class="space-y-3">
+                            <template x-for="(store, idx) in (geoDistribution?.topDomesticStores || [])" :key="idx">
+                                <div class="flex items-center justify-between p-2 bg-green-50 rounded-lg">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="w-6 h-6 flex items-center justify-center bg-green-600 text-white text-xs font-bold rounded-full" x-text="idx + 1"></span>
+                                        <span class="text-sm font-medium text-gray-800 truncate max-w-[150px]" x-text="store.ragioneSociale" :title="store.ragioneSociale"></span>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-sm font-bold text-green-700" x-text="store.count.toLocaleString()"></div>
+                                        <div class="text-xs text-gray-500" x-text="store.percentage.toFixed(1) + '%'"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Top 5 EU -->
+                    <div class="glass-effect rounded-2xl shadow-lg p-6 animate-slide-in-up" style="animation-delay: 0.9s">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <i data-lucide="flag" class="w-5 h-5 mr-2 text-blue-600"></i>
+                            Top 5 Carte UE
+                        </h3>
+                        <div class="space-y-3">
+                            <template x-for="(store, idx) in (geoDistribution?.topEuStores || [])" :key="idx">
+                                <div class="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="w-6 h-6 flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full" x-text="idx + 1"></span>
+                                        <span class="text-sm font-medium text-gray-800 truncate max-w-[150px]" x-text="store.ragioneSociale" :title="store.ragioneSociale"></span>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-sm font-bold text-blue-700" x-text="store.count.toLocaleString()"></div>
+                                        <div class="text-xs text-gray-500" x-text="store.percentage.toFixed(1) + '%'"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Top 5 Extra EU -->
+                    <div class="glass-effect rounded-2xl shadow-lg p-6 animate-slide-in-up" style="animation-delay: 0.95s">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <i data-lucide="globe-2" class="w-5 h-5 mr-2 text-purple-600"></i>
+                            Top 5 Carte Extra UE
+                        </h3>
+                        <div class="space-y-3">
+                            <template x-for="(store, idx) in (geoDistribution?.topExtraEuStores || [])" :key="idx">
+                                <div class="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="w-6 h-6 flex items-center justify-center bg-purple-600 text-white text-xs font-bold rounded-full" x-text="idx + 1"></span>
+                                        <span class="text-sm font-medium text-gray-800 truncate max-w-[150px]" x-text="store.ragioneSociale" :title="store.ragioneSociale"></span>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-sm font-bold text-purple-700" x-text="store.count.toLocaleString()"></div>
+                                        <div class="text-xs text-gray-500" x-text="store.percentage.toFixed(1) + '%'"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                 </div>
 
             </div>

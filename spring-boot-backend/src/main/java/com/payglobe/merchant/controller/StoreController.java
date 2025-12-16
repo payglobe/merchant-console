@@ -46,7 +46,7 @@ public class StoreController {
         List<StoreGroupResponse> groups;
 
         if (currentUser.isAdmin()) {
-            // Admin: tutti i negozi (con LIMIT per evitare timeout)
+            // Admin: tutti i negozi (aumentato LIMIT per vedere tutti gli store)
             sql = """
                 SELECT
                     GROUP_CONCAT(DISTINCT s.TerminalID ORDER BY s.TerminalID SEPARATOR ',') as terminalIds,
@@ -60,7 +60,7 @@ public class StoreController {
                 WHERE s.TerminalID IS NOT NULL
                 GROUP BY s.Insegna, s.Ragione_Sociale, s.indirizzo, s.citta
                 ORDER BY s.Insegna, s.Ragione_Sociale, s.indirizzo
-                LIMIT 1000
+                LIMIT 50000
                 """;
 
             groups = jdbcTemplate.query(sql, (rs, rowNum) ->

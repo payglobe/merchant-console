@@ -392,4 +392,80 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("endDate") LocalDateTime endDate
     );
 
+    // ========== Metodi per Geo Distribution (liste non paginate) ==========
+
+    /**
+     * Lista transazioni per date range - Admin (limitata)
+     */
+    @Query(value = """
+        SELECT * FROM transactions
+        WHERE transaction_date BETWEEN :startDate AND :endDate
+        AND settlement_flag = '1'
+        ORDER BY transaction_date DESC
+        LIMIT :maxResults
+        """, nativeQuery = true)
+    List<Transaction> findByDateRangeList(
+        @Param("startDate") LocalDateTime startDate,
+        @Param("endDate") LocalDateTime endDate,
+        @Param("maxResults") int maxResults
+    );
+
+    /**
+     * Lista transazioni per POSID e date range (limitata)
+     */
+    @Query(value = """
+        SELECT * FROM transactions
+        WHERE FIND_IN_SET(posid, :posids) > 0
+        AND transaction_date BETWEEN :startDate AND :endDate
+        AND settlement_flag = '1'
+        ORDER BY transaction_date DESC
+        LIMIT :maxResults
+        """, nativeQuery = true)
+    List<Transaction> findByPosidAndDateRangeList(
+        @Param("posids") String posids,
+        @Param("startDate") LocalDateTime startDate,
+        @Param("endDate") LocalDateTime endDate,
+        @Param("maxResults") int maxResults
+    );
+
+    /**
+     * Lista transazioni per BU e date range (limitata)
+     */
+    @Query(value = """
+        SELECT t.* FROM transactions t
+        INNER JOIN stores s ON t.posid = s.TerminalID
+        WHERE s.bu = :bu
+        AND t.transaction_date BETWEEN :startDate AND :endDate
+        AND t.settlement_flag = '1'
+        ORDER BY t.transaction_date DESC
+        LIMIT :maxResults
+        """, nativeQuery = true)
+    List<Transaction> findByBuAndDateRangeList(
+        @Param("bu") String bu,
+        @Param("startDate") LocalDateTime startDate,
+        @Param("endDate") LocalDateTime endDate,
+        @Param("maxResults") int maxResults
+    );
+
+    /**
+     * Lista transazioni per BU, POSID e date range (limitata)
+     */
+    @Query(value = """
+        SELECT t.* FROM transactions t
+        INNER JOIN stores s ON t.posid = s.TerminalID
+        WHERE s.bu = :bu
+        AND FIND_IN_SET(t.posid, :posids) > 0
+        AND t.transaction_date BETWEEN :startDate AND :endDate
+        AND t.settlement_flag = '1'
+        ORDER BY t.transaction_date DESC
+        LIMIT :maxResults
+        """, nativeQuery = true)
+    List<Transaction> findByBuAndPosidAndDateRangeList(
+        @Param("bu") String bu,
+        @Param("posids") String posids,
+        @Param("startDate") LocalDateTime startDate,
+        @Param("endDate") LocalDateTime endDate,
+        @Param("maxResults") int maxResults
+    );
+
 }

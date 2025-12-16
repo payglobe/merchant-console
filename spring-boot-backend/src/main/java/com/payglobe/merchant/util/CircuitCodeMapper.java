@@ -91,7 +91,7 @@ public class CircuitCodeMapper {
         }
 
         // Carte domestiche italiane (PagoBancomat)
-        String[] pagobancomat = {"PA", "PB", "PP", "DAACQU", "DSESTO", "DSISTO", "DPACQU", "DVACQU", "DNACQU"};
+        String[] pagobancomat = {"PA", "PB", "PP", "PG", "DAACQU", "DSESTO", "DSISTO", "DPACQU", "DVACQU", "DNACQU"};
         for (String pb : pagobancomat) {
             if (code.equals(pb)) {
                 return "PagoBancomat";

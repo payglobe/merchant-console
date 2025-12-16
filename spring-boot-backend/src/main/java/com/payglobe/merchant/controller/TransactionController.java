@@ -2,6 +2,7 @@ package com.payglobe.merchant.controller;
 
 import com.payglobe.merchant.dto.response.CircuitDistributionResponse;
 import com.payglobe.merchant.dto.response.DashboardStatsResponse;
+import com.payglobe.merchant.dto.response.GeoDistributionResponse;
 import com.payglobe.merchant.dto.response.PagedResponse;
 import com.payglobe.merchant.dto.response.TransactionResponse;
 import com.payglobe.merchant.entity.User;
@@ -64,13 +65,13 @@ public class TransactionController {
             endDate = LocalDate.now();
         }
 
-        // VALIDAZIONE ADMIN: max 7 giorni di differenza (troppi dati!)
+        // VALIDAZIONE ADMIN: max 30 giorni di differenza
         if (currentUser.isAdmin()) {
             long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
-            if (daysBetween > 7) {
+            if (daysBetween > 30) {
                 throw new IllegalArgumentException(
-                    "Per gli admin, la differenza tra data inizio e data fine non può superare 7 giorni. " +
-                    "Attualmente: " + daysBetween + " giorni. Troppi dati!"
+                    "Per gli admin, la differenza tra data inizio e data fine non può superare 30 giorni. " +
+                    "Attualmente: " + daysBetween + " giorni."
                 );
             }
         }
@@ -114,13 +115,13 @@ public class TransactionController {
             endDate = LocalDate.now();
         }
 
-        // VALIDAZIONE ADMIN: max 7 giorni di differenza (troppi dati!)
+        // VALIDAZIONE ADMIN: max 30 giorni di differenza
         if (currentUser.isAdmin()) {
             long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
-            if (daysBetween > 7) {
+            if (daysBetween > 30) {
                 throw new IllegalArgumentException(
-                    "Per gli admin, la differenza tra data inizio e data fine non può superare 7 giorni. " +
-                    "Attualmente: " + daysBetween + " giorni. Troppi dati!"
+                    "Per gli admin, la differenza tra data inizio e data fine non può superare 30 giorni. " +
+                    "Attualmente: " + daysBetween + " giorni."
                 );
             }
         }
@@ -159,13 +160,13 @@ public class TransactionController {
             endDate = LocalDate.now();
         }
 
-        // VALIDAZIONE ADMIN: max 7 giorni di differenza (troppi dati!)
+        // VALIDAZIONE ADMIN: max 30 giorni di differenza
         if (currentUser.isAdmin()) {
             long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
-            if (daysBetween > 7) {
+            if (daysBetween > 30) {
                 throw new IllegalArgumentException(
-                    "Per gli admin, la differenza tra data inizio e data fine non può superare 7 giorni. " +
-                    "Attualmente: " + daysBetween + " giorni. Troppi dati!"
+                    "Per gli admin, la differenza tra data inizio e data fine non può superare 30 giorni. " +
+                    "Attualmente: " + daysBetween + " giorni."
                 );
             }
         }
@@ -204,13 +205,13 @@ public class TransactionController {
             endDate = LocalDate.now();
         }
 
-        // VALIDAZIONE ADMIN: max 7 giorni di differenza (troppi dati!)
+        // VALIDAZIONE ADMIN: max 30 giorni di differenza
         if (currentUser.isAdmin()) {
             long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
-            if (daysBetween > 7) {
+            if (daysBetween > 30) {
                 throw new IllegalArgumentException(
-                    "Per gli admin, la differenza tra data inizio e data fine non può superare 7 giorni. " +
-                    "Attualmente: " + daysBetween + " giorni. Troppi dati!"
+                    "Per gli admin, la differenza tra data inizio e data fine non può superare 30 giorni. " +
+                    "Attualmente: " + daysBetween + " giorni."
                 );
             }
         }
@@ -224,6 +225,52 @@ public class TransactionController {
             startDateTime, endDateTime, cleanFilterStore, currentUser);
 
         return ResponseEntity.ok(trend);
+    }
+
+    /**
+     * Distribuzione geografica transazioni (Domestic/UE/Extra UE)
+     *
+     * GET /api/v2/transactions/geo-distribution
+     */
+    @GetMapping("/geo-distribution")
+    public ResponseEntity<GeoDistributionResponse> getGeoDistribution(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String filterStore,
+            @RequestParam(required = false) List<String> excludeStores) {
+
+        log.info("GET /api/v2/transactions/geo-distribution - startDate={}, endDate={}, filterStore={}, excludeStores={}",
+                 startDate, endDate, filterStore, excludeStores != null ? excludeStores.size() : 0);
+
+        User currentUser = getCurrentUser();
+
+        if (startDate == null) {
+            startDate = currentUser.isAdmin() ? LocalDate.now().minusDays(7) : LocalDate.now().minusMonths(1);
+        }
+        if (endDate == null) {
+            endDate = LocalDate.now();
+        }
+
+        // VALIDAZIONE ADMIN: max 30 giorni di differenza
+        if (currentUser.isAdmin()) {
+            long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
+            if (daysBetween > 30) {
+                throw new IllegalArgumentException(
+                    "Per gli admin, la differenza tra data inizio e data fine non può superare 30 giorni. " +
+                    "Attualmente: " + daysBetween + " giorni."
+                );
+            }
+        }
+
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+
+        String cleanFilterStore = cleanFilterStore(filterStore);
+
+        GeoDistributionResponse response = transactionService.getGeoDistribution(
+            startDateTime, endDateTime, cleanFilterStore, excludeStores, currentUser);
+
+        return ResponseEntity.ok(response);
     }
 
     // ========== Helper methods ==========
