@@ -1,7 +1,7 @@
 /**
- * PayGlobe Merchant Console v2.4.2 - Dashboard
+ * PayGlobe Merchant Console v2.4.5 - Dashboard
  * Alpine.js + ECharts + Spring Boot API
- * Fix: gestione sessione scaduta con token refresh automatico
+ * Fix: pulizia automatica token invalidi su refresh fallito
  */
 
 function dashboard() {
@@ -12,6 +12,7 @@ function dashboard() {
         // State
         isAuthenticated: false,
         isRefreshingToken: false, // Flag per evitare refresh multipli
+        isLoggingOut: false, // Flag per evitare errori durante logout
         user: null,
         loading: false,
         loginError: '',
@@ -61,6 +62,8 @@ function dashboard() {
         amountRangeChart: null,
         topBanksChart: null,
         transactionTypesChart: null,
+        geoDistributionChart: null,
+        geoDistribution: null,
 
         // Admin sections
         users: [],
@@ -170,7 +173,19 @@ function dashboard() {
 
         // Initialization
         async init() {
-            console.log('Dashboard v2.4.2 initializing...');
+            console.log('Dashboard v2.4.3 initializing...');
+
+            // Se siamo appena tornati dal logout, pulisci tutto e mostra login
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('logout')) {
+                console.log('Post-logout cleanup');
+                localStorage.clear();
+                sessionStorage.clear();
+                // Rimuovi parametro logout dall'URL senza reload
+                window.history.replaceState({}, document.title, window.location.pathname);
+                this.$nextTick(() => lucide.createIcons());
+                return;
+            }
 
             // Check if already authenticated
             const token = localStorage.getItem('accessToken');
@@ -345,20 +360,28 @@ function dashboard() {
         },
 
         async logout(skipReload = false) {
+            // Setta il flag PRIMA di tutto per evitare errori nelle fetch in corso
+            this.isLoggingOut = true;
+
             try {
                 const token = localStorage.getItem('accessToken');
                 if (token) {
-                    await fetch('/merchant-api/api/v2/auth/logout', {
+                    // Non aspettiamo la risposta - ignoriamo completamente
+                    fetch('/merchant-api/api/v2/auth/logout', {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${token}`
                         }
-                    }).catch(() => {
-                        // Ignore logout errors (token might be expired)
-                    });
+                    }).catch(() => {});
                 }
             } finally {
-                localStorage.clear();
+                // IMPORTANTE: Pulisci TUTTI i dati di sessione
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('user');
+                localStorage.clear();  // Extra cleanup
+                sessionStorage.clear(); // Pulisci anche sessionStorage
+
                 this.isAuthenticated = false;
                 this.user = null;
                 this.stats = null;
@@ -366,9 +389,11 @@ function dashboard() {
                 this.stores = [];
                 this.page = 0;
                 this.totalPages = 0;
+                this.isRefreshingToken = false; // Reset flag refresh
 
                 if (!skipReload) {
-                    window.location.reload();
+                    // Forza un reload completo per evitare cache issues
+                    window.location.href = window.location.pathname + '?logout=' + Date.now();
                 }
             }
         },
@@ -408,10 +433,19 @@ function dashboard() {
                     return true;
                 } else {
                     console.log('Token refresh failed with status:', response.status);
+                    // Se il refresh fallisce, pulisci i token invalidi
+                    // Questo evita loop infiniti di "sessione scaduta"
+                    localStorage.removeItem('accessToken');
+                    localStorage.removeItem('refreshToken');
+                    localStorage.removeItem('user');
                     return false;
                 }
             } catch (error) {
                 console.error('Token refresh error:', error);
+                // Pulisci anche in caso di errore di rete
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('user');
                 return false;
             } finally {
                 this.isRefreshingToken = false;
@@ -424,8 +458,22 @@ function dashboard() {
          * @param {object} options - Opzioni fetch (headers, method, body, etc.)
          * @returns {Response} - La risposta fetch
          */
-        async fetchWithAuth(url, options = {}) {
+        async fetchWithAuth(url, options = {}, retryCount = 0) {
+            const MAX_RETRIES = 2;
+            const RETRY_DELAY = 1000; // 1 secondo
+
+            // Se stiamo facendo logout, non fare nulla
+            if (this.isLoggingOut) {
+                throw new Error('LOGOUT_IN_PROGRESS');
+            }
+
             const token = localStorage.getItem('accessToken');
+
+            if (!token) {
+                console.error('fetchWithAuth: No access token available!');
+                this.logout(true); // skipReload
+                throw new Error('SESSION_EXPIRED');
+            }
 
             // Aggiungi header Authorization se non presente
             const headers = {
@@ -433,11 +481,33 @@ function dashboard() {
                 'Authorization': `Bearer ${token}`
             };
 
-            let response = await fetch(url, { ...options, headers });
+            console.log('fetchWithAuth:', url, retryCount > 0 ? `(retry ${retryCount})` : '');
+
+            let response;
+            try {
+                response = await fetch(url, { ...options, headers });
+            } catch (networkError) {
+                // Se stiamo facendo logout, ignora l'errore
+                if (this.isLoggingOut) {
+                    throw new Error('LOGOUT_IN_PROGRESS');
+                }
+
+                // Errore di rete (Failed to fetch, ERR_CONNECTION_REFUSED, etc.)
+                console.error('Network error for', url, ':', networkError.message);
+
+                if (retryCount < MAX_RETRIES) {
+                    console.log(`Retry ${retryCount + 1}/${MAX_RETRIES} in ${RETRY_DELAY}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    return this.fetchWithAuth(url, options, retryCount + 1);
+                }
+
+                // Dopo tutti i retry, lancia un errore più chiaro
+                throw new Error('Server non raggiungibile. Verificare la connessione di rete.');
+            }
 
             // Se 403/401, prova refresh token
             if (response.status === 403 || response.status === 401) {
-                console.log('Got 403/401, attempting token refresh...');
+                console.log('Got 403/401 for', url, '- attempting token refresh...');
 
                 const refreshed = await this.tryRefreshToken();
 
@@ -445,19 +515,22 @@ function dashboard() {
                     // Riprova la chiamata con il nuovo token
                     const newToken = localStorage.getItem('accessToken');
                     headers['Authorization'] = `Bearer ${newToken}`;
-                    response = await fetch(url, { ...options, headers });
+                    try {
+                        response = await fetch(url, { ...options, headers });
+                    } catch (networkError) {
+                        throw new Error('Server non raggiungibile. Verificare la connessione di rete.');
+                    }
 
                     // Se ancora 403, il refresh non ha funzionato - logout
                     if (response.status === 403 || response.status === 401) {
                         console.log('Still 403 after refresh - session expired');
-                        alert('Sessione scaduta. Effettua nuovamente il login.');
+                        console.error('Session expired after refresh attempt for:', url);
                         this.logout();
                         throw new Error('SESSION_EXPIRED');
                     }
                 } else {
-                    // Refresh fallito - logout
-                    console.log('Refresh failed - session expired');
-                    alert('Sessione scaduta. Effettua nuovamente il login.');
+                    // Refresh fallito - logout senza alert (l'utente vedrà la schermata di login)
+                    console.log('Refresh failed - redirecting to login');
                     this.logout();
                     throw new Error('SESSION_EXPIRED');
                 }
@@ -472,7 +545,12 @@ function dashboard() {
          */
         async validateSession() {
             const token = localStorage.getItem('accessToken');
-            if (!token) return false;
+            if (!token) {
+                // Pulisci eventuali dati orfani
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('user');
+                return false;
+            }
 
             try {
                 // Prova una chiamata semplice per verificare il token
@@ -488,12 +566,25 @@ function dashboard() {
                     // Token scaduto, prova refresh
                     console.log('Token expired at startup, trying refresh...');
                     const refreshed = await this.tryRefreshToken();
+
+                    if (!refreshed) {
+                        // Refresh fallito - pulisci tutto e mostra login
+                        console.log('Refresh failed - clearing all stored data');
+                        localStorage.removeItem('accessToken');
+                        localStorage.removeItem('refreshToken');
+                        localStorage.removeItem('user');
+                    }
+
                     return refreshed;
                 }
 
                 return false;
             } catch (error) {
                 console.error('Session validation error:', error);
+                // In caso di errore, pulisci tutto
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('user');
                 return false;
             }
         },
@@ -547,7 +638,7 @@ function dashboard() {
                 });
 
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return; // Già gestito
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return; // Già gestito
                 console.error('Error loading stats:', error);
                 alert('Errore caricamento statistiche: ' + error.message);
             }
@@ -594,7 +685,7 @@ function dashboard() {
                 console.log('Transactions loaded successfully:', this.transactions.length, 'items');
 
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return;
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Error loading transactions:', error);
                 alert('Errore caricamento transazioni: ' + error.message);
             } finally {
@@ -614,12 +705,21 @@ function dashboard() {
                     circuitParams.append('filterStore', this.filters.filterStore);
                 }
 
-                // Trend chart ALWAYS uses start of month to today (independent of filters)
+                // Trend chart: per admin max 7 giorni, per utenti normali usa inizio mese
                 const today = new Date();
-                const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                let trendStartDate;
+
+                if (this.user && this.user.isAdmin) {
+                    // Admin: limita a 7 giorni per evitare errore "troppi dati"
+                    trendStartDate = new Date();
+                    trendStartDate.setDate(today.getDate() - 7);
+                } else {
+                    // Utenti normali: usa inizio mese
+                    trendStartDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                }
 
                 const trendParams = new URLSearchParams({
-                    startDate: this.formatDateForInput(startOfMonth),
+                    startDate: this.formatDateForInput(trendStartDate),
                     endDate: this.formatDateForInput(today)
                 });
 
@@ -632,10 +732,11 @@ function dashboard() {
                     endDate: this.filters.endDate,
                     filterStore: this.filters.filterStore
                 });
-                console.log('Loading charts - Trend params (start of month to today):', {
-                    startDate: this.formatDateForInput(startOfMonth),
+                console.log('Loading charts - Trend params:', {
+                    startDate: this.formatDateForInput(trendStartDate),
                     endDate: this.formatDateForInput(today),
-                    filterStore: this.filters.filterStore
+                    filterStore: this.filters.filterStore,
+                    isAdmin: this.user?.isAdmin
                 });
 
                 const circuitUrl = `/merchant-api/api/v2/transactions/circuits?${circuitParams}`;
@@ -673,7 +774,7 @@ function dashboard() {
                 });
 
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return;
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Error loading charts:', error);
                 alert('Errore caricamento grafici: ' + error.message);
             }
@@ -696,7 +797,7 @@ function dashboard() {
                 console.log('Stores loaded:', this.stores.length);
 
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return;
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Error loading stores:', error);
             }
         },
@@ -963,7 +1064,7 @@ function dashboard() {
                 alert(`Esportate ${allTransactions.length} transazioni`);
 
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return;
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Export error:', error);
                 alert('Errore durante l\'esportazione: ' + error.message);
             } finally {
@@ -1330,8 +1431,11 @@ function dashboard() {
                 this.renderTransactionTypesChart(transactions);
                 console.log('All charts rendered!');
 
+                // Load Geo Distribution (separate API call)
+                this.loadGeoDistribution();
+
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return;
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Statistics error:', error);
                 alert('Errore caricamento statistiche: ' + error.message);
             } finally {
@@ -1356,9 +1460,9 @@ function dashboard() {
             this.statsData.successRate = successRate + '%';
 
             // Max and min amounts
-            const amounts = transactions.map(tx => tx.amount || 0);
-            this.statsData.maxAmount = Math.max(...amounts);
-            this.statsData.minAmount = Math.min(...amounts.filter(a => a > 0));
+            const settledTx = transactions.filter(tx => tx.settlementFlag === "1"); const amounts = settledTx.map(tx => tx.amount || 0);
+            this.statsData.maxAmount = amounts.reduce((max, a) => a > max ? a : max, 0);
+            this.statsData.minAmount = amounts.filter(a => a > 0).reduce((min, a) => a < min ? a : min, Infinity);
 
             // Peak hour (hour with most transactions)
             const hourCounts = {};
@@ -1808,6 +1912,237 @@ function dashboard() {
             this.transactionTypesChart.setOption(option);
         },
 
+        // ========== GEO DISTRIBUTION ==========
+
+        async loadGeoDistribution() {
+            try {
+                // Calculate date range based on period (same as loadStatisticsCharts)
+                const endDate = new Date();
+                let startDate = new Date();
+
+                if (this.statsPeriod === '7d') {
+                    startDate.setDate(endDate.getDate() - 7);
+                } else if (this.statsPeriod === '30d') {
+                    startDate.setDate(endDate.getDate() - 30);
+                } else if (this.statsPeriod === '90d') {
+                    startDate.setDate(endDate.getDate() - 90);
+                }
+
+                const startDateStr = this.formatDateForInput(startDate);
+                const endDateStr = this.formatDateForInput(endDate);
+                const storeParam = this.statsFilterStore ? `&filterStore=${encodeURIComponent(this.statsFilterStore)}` : '';
+
+                const response = await this.fetchWithAuth(
+                    `${this.apiUrl}/api/v2/transactions/geo-distribution?startDate=${startDateStr}&endDate=${endDateStr}${storeParam}`
+                );
+
+                if (response.ok) {
+                    this.geoDistribution = await response.json();
+                    this.renderGeoDistributionChart();
+                } else {
+                    console.error('Error loading geo distribution:', response.status);
+                }
+            } catch (error) {
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
+                console.error('Error loading geo distribution:', error);
+            }
+        },
+
+        renderGeoDistributionChart() {
+            if (!this.geoDistribution) return;
+
+            const container = document.getElementById('geoDistributionChart');
+            if (!container) return;
+
+            if (!this.geoDistributionChart) {
+                this.geoDistributionChart = echarts.init(container);
+            }
+
+            const data = this.geoDistribution;
+
+            // Prepare pie chart data
+            const pieData = [];
+            const colors = {
+                domestic: '#10b981',  // Green
+                eu: '#3b82f6',        // Blue
+                extraEu: '#f59e0b',   // Orange
+                unknown: '#6b7280'    // Gray
+            };
+
+            if (data.domestic && data.domestic.count > 0) {
+                pieData.push({
+                    name: 'Domestic (IT)',
+                    value: data.domestic.count,
+                    amount: data.domestic.amount,
+                    itemStyle: { color: colors.domestic }
+                });
+            }
+            if (data.eu && data.eu.count > 0) {
+                pieData.push({
+                    name: 'EU',
+                    value: data.eu.count,
+                    amount: data.eu.amount,
+                    itemStyle: { color: colors.eu }
+                });
+            }
+            if (data.extraEu && data.extraEu.count > 0) {
+                pieData.push({
+                    name: 'Extra EU',
+                    value: data.extraEu.count,
+                    amount: data.extraEu.amount,
+                    itemStyle: { color: colors.extraEu }
+                });
+            }
+            if (data.unknown && data.unknown.count > 0) {
+                pieData.push({
+                    name: 'Sconosciuto',
+                    value: data.unknown.count,
+                    amount: data.unknown.amount,
+                    itemStyle: { color: colors.unknown }
+                });
+            }
+
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: (params) => {
+                        const amount = this.formatCurrency(params.data.amount || 0);
+                        return `<strong>${params.name}</strong><br/>
+                                Transazioni: ${params.value.toLocaleString('it-IT')}<br/>
+                                Volume: ${amount}<br/>
+                                Percentuale: ${params.percent.toFixed(1)}%`;
+                    }
+                },
+                legend: {
+                    orient: 'horizontal',
+                    bottom: 10,
+                    data: pieData.map(d => d.name)
+                },
+                series: [
+                    {
+                        name: 'Distribuzione Geografica',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        center: ['50%', '45%'],
+                        avoidLabelOverlap: true,
+                        itemStyle: {
+                            borderRadius: 8,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: true,
+                            formatter: '{b}\n{c} ({d}%)',
+                            fontSize: 11
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: 14,
+                                fontWeight: 'bold'
+                            },
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        },
+                        data: pieData
+                    }
+                ]
+            };
+
+            this.geoDistributionChart.setOption(option);
+
+            // Update details panel
+            this.updateGeoDetails();
+        },
+
+        updateGeoDetails() {
+            if (!this.geoDistribution) return;
+
+            const data = this.geoDistribution;
+            const detailsContainer = document.getElementById('geoDetailsPanel');
+            if (!detailsContainer) return;
+
+            const areas = [
+                { key: 'domestic', label: 'Domestic (Italia)', color: 'bg-green-500', data: data.domestic },
+                { key: 'eu', label: 'Unione Europea', color: 'bg-blue-500', data: data.eu },
+                { key: 'extraEu', label: 'Extra UE', color: 'bg-orange-500', data: data.extraEu },
+                { key: 'unknown', label: 'Sconosciuto', color: 'bg-gray-500', data: data.unknown }
+            ];
+
+            let html = '';
+            areas.forEach(area => {
+                if (area.data && area.data.count > 0) {
+                    html += `
+                        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center mb-2">
+                                <div class="w-3 h-3 ${area.color} rounded-full mr-2"></div>
+                                <span class="font-semibold">${area.label}</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <span class="text-gray-500">Transazioni:</span>
+                                    <span class="font-medium ml-1">${area.data.count.toLocaleString('it-IT')}</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500">Volume:</span>
+                                    <span class="font-medium ml-1">${this.formatCurrency(area.data.amount)}</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500">% Transazioni:</span>
+                                    <span class="font-medium ml-1">${(area.data.percentageCount || 0).toFixed(1)}%</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500">% Volume:</span>
+                                    <span class="font-medium ml-1">${(area.data.percentageAmount || 0).toFixed(1)}%</span>
+                                </div>
+                            </div>
+                            ${this.renderCircuitDetails(area.data.byCircuit)}
+                        </div>
+                    `;
+                }
+            });
+
+            detailsContainer.innerHTML = html || '<p class="text-gray-500">Nessun dato disponibile</p>';
+        },
+
+        renderCircuitDetails(circuitDetails) {
+            if (!circuitDetails || circuitDetails.length === 0) return '';
+
+            let html = '<div class="mt-2 pt-2 border-t border-gray-200">';
+            html += '<div class="text-xs text-gray-500 mb-1">Dettaglio circuiti:</div>';
+            html += '<div class="flex flex-wrap gap-1">';
+
+            circuitDetails.forEach(circuit => {
+                const circuitColor = this.getCircuitColor(circuit.circuit);
+                html += `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs"
+                          style="background-color: ${circuitColor}20; color: ${circuitColor}">
+                        ${circuit.circuit}: ${circuit.count.toLocaleString('it-IT')}
+                    </span>
+                `;
+            });
+
+            html += '</div></div>';
+            return html;
+        },
+
+        getCircuitColor(circuit) {
+            const colors = {
+                'VISA': '#1a1f71',
+                'MASTERCARD': '#eb001b',
+                'MAESTRO': '#0099df',
+                'AMEX': '#016fd0',
+                'DINERS': '#004b87',
+                'JCB': '#0b4ea2',
+                'UNIONPAY': '#de2824',
+                'BANCOMAT': '#00a651'
+            };
+            return colors[circuit?.toUpperCase()] || '#6b7280';
+        },
+
         // ========== ADMIN SECTIONS ==========
 
         // === USER MANAGEMENT ===
@@ -1836,7 +2171,7 @@ function dashboard() {
                     alert('Errore caricamento utenti');
                 }
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return;
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Error loading users:', error);
                 alert('Errore di connessione');
             } finally {
@@ -2123,7 +2458,7 @@ function dashboard() {
                     alert('Errore caricamento codici');
                 }
             } catch (error) {
-                if (error.message === 'SESSION_EXPIRED') return;
+                if (error.message === 'SESSION_EXPIRED' || error.message === 'LOGOUT_IN_PROGRESS') return;
                 console.error('Error loading activation codes:', error);
                 alert('Errore di connessione');
             } finally {

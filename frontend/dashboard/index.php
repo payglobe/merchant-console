@@ -434,7 +434,23 @@ header("Expires: 0");
             <!-- End Dashboard Section -->
 
             <!-- Statistics Section -->
-            <div x-show="currentPage === 'statistics'" x-cloak x-init="$watch('currentPage', value => { if (value === 'statistics' && stores.length > 0) { $nextTick(() => loadStatisticsCharts()) } })">
+            <div x-show="currentPage === 'statistics'" x-cloak x-init="$watch('currentPage', value => { if (value === 'statistics' && stores.length > 0) { $nextTick(() => loadStatisticsCharts()) } })" class="relative">
+
+                <!-- Loading Overlay -->
+                <div x-show="loading"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0"
+                     class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-start justify-center pt-32">
+                    <div class="text-center bg-white rounded-2xl shadow-xl p-8">
+                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-200 border-t-purple-600 mb-4"></div>
+                        <p class="text-gray-600 font-medium">Caricamento statistiche...</p>
+                        <p class="text-gray-400 text-sm mt-1">Analisi in corso</p>
+                    </div>
+                </div>
 
                 <!-- Filters and Period Selector -->
                 <div class="glass-effect rounded-2xl shadow-lg p-6 mb-8 animate-slide-in-up">
@@ -613,6 +629,32 @@ header("Expires: 0");
                             Top 10 Banche per Volume
                         </h3>
                         <div id="topBanksChart" class="w-full" style="height: 300px;"></div>
+                    </div>
+                </div>
+
+                <!-- Geo Distribution (Domestic/UE/Extra UE) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Geo Distribution Pie Chart -->
+                    <div class="glass-effect rounded-2xl shadow-lg p-6 animate-slide-in-up" style="animation-delay: 0.75s">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <i data-lucide="globe" class="w-5 h-5 mr-2 text-blue-600"></i>
+                            Distribuzione Geografica Carte
+                        </h3>
+                        <div id="geoDistributionChart" class="w-full" style="height: 300px;"></div>
+                    </div>
+
+                    <!-- Geo Distribution Details -->
+                    <div class="glass-effect rounded-2xl shadow-lg p-6 animate-slide-in-up" style="animation-delay: 0.8s">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <i data-lucide="map-pin" class="w-5 h-5 mr-2 text-green-600"></i>
+                            Dettaglio per Area Geografica
+                        </h3>
+                        <div id="geoDetailsPanel" class="space-y-4">
+                            <div class="text-center text-gray-500 py-8">
+                                <i data-lucide="loader-2" class="w-8 h-8 mx-auto mb-2 animate-spin"></i>
+                                Caricamento...
+                            </div>
+                        </div>
                     </div>
                 </div>
 
