@@ -262,6 +262,12 @@ header("Expires: 0");
                                     <i data-lucide="database" class="w-4 h-4"></i>
                                     <span>Aggiorna BIN Table</span>
                                 </button>
+                                <button @click="currentPage = 'store-import'; loadStoreCount()"
+                                        :class="currentPage === 'store-import' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'"
+                                        class="flex items-center space-x-2 px-4 py-2 rounded-lg transition font-medium">
+                                    <i data-lucide="store" class="w-4 h-4"></i>
+                                    <span>Anagrafica Terminali</span>
+                                </button>
                             </div>
                         </template>
                     </nav>
@@ -1374,6 +1380,110 @@ header("Expires: 0");
                                         <li>Il file deve essere in formato CSV</li>
                                         <li>L'operazione sostituirà tutti i dati esistenti</li>
                                         <li>Assicurati che il file sia corretto prima di procedere</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Store Import Section (Admin Only) -->
+            <div x-show="currentPage === 'store-import'" x-cloak>
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-900 flex items-center">
+                        <i data-lucide="store" class="w-8 h-8 mr-3 text-red-600"></i>
+                        Anagrafica Terminali
+                    </h2>
+                    <p class="text-gray-600 mt-2">Upload file CSV per importare/aggiornare l'anagrafica dei terminali POS</p>
+                </div>
+
+                <!-- Stats Card -->
+                <div class="glass-effect rounded-xl shadow-lg p-6 mb-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="bg-green-100 rounded-full w-12 h-12 flex items-center justify-center mr-4">
+                                <i data-lucide="building-2" class="w-6 h-6 text-green-600"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Terminali in anagrafica</p>
+                                <p class="text-2xl font-bold text-gray-900" x-text="storeCount.toLocaleString()"></p>
+                            </div>
+                        </div>
+                        <button @click="loadStoreCount()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="glass-effect rounded-xl shadow-lg p-8">
+                    <div class="max-w-2xl mx-auto">
+                        <div class="text-center mb-8">
+                            <div class="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                                <i data-lucide="upload-cloud" class="w-10 h-10 text-green-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold mb-2">Carica File Anagrafica</h3>
+                            <p class="text-gray-600">Seleziona un file CSV contenente i dati dei terminali</p>
+                        </div>
+
+                        <form @submit.prevent="uploadStores()">
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">File CSV o ZIP *</label>
+                                <input type="file" id="storeFileInput" accept=".csv,.zip" @change="handleStoreFileSelect($event)" required
+                                       class="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 transition cursor-pointer
+                                              file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium
+                                              file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+                                <small class="text-gray-500 mt-2 block">Formato: CSV con separatore punto e virgola (;)</small>
+                            </div>
+
+                            <div x-show="storeUploadMessage" class="mb-6 p-4 rounded-lg" :class="storeUploadMessage.startsWith('✅') ? 'bg-green-50 text-green-700 border border-green-200' : (storeUploadMessage.startsWith('❌') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700 border border-blue-200')">
+                                <div class="flex items-start">
+                                    <div class="flex-1">
+                                        <p class="font-medium" x-text="storeUploadMessage"></p>
+                                        <p x-show="storeImportStatus === 'processing' && storeProcessedRecords > 0" class="text-sm mt-1 opacity-75">
+                                            <span x-text="storeProcessedRecords.toLocaleString()"></span> / <span x-text="storeTotalRecords > 0 ? storeTotalRecords.toLocaleString() : '~'"></span> record
+                                        </p>
+                                    </div>
+                                    <div x-show="storeImportStatus === 'processing'" class="ml-3">
+                                        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div x-show="storeUploadProgress > 0 && storeUploadProgress < 100" class="mb-6">
+                                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                                    <span>Progresso</span>
+                                    <span class="font-semibold" x-text="`${storeUploadProgress.toFixed(1)}%`"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                    <div class="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500 ease-out" :style="`width: ${storeUploadProgress}%`">
+                                        <div class="h-full w-full opacity-25 bg-gradient-to-r from-transparent via-white to-transparent animate-pulse-slow"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex space-x-4">
+                                <button type="submit" :disabled="loading || !storeUploadFile"
+                                        class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition font-medium">
+                                    <i data-lucide="upload" class="w-5 h-5 inline mr-2"></i>
+                                    Importa Anagrafica
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div class="flex items-start">
+                                <i data-lucide="info" class="w-5 h-5 text-blue-600 mr-2 mt-0.5"></i>
+                                <div class="text-sm text-blue-800">
+                                    <p class="font-semibold mb-1">Formato CSV richiesto:</p>
+                                    <p class="font-mono text-xs bg-blue-100 p-2 rounded mt-2 overflow-x-auto">
+                                        TerminalID;Ragione_Sociale;Insegna;indirizzo;Citta;Cap;Prov;sia_pagobancomat;six;amex;Modello_pos;country;;bu;bu1;bu2
+                                    </p>
+                                    <ul class="list-disc list-inside space-y-1 mt-3">
+                                        <li><strong>TerminalID</strong>: Chiave primaria (es: 95014155)</li>
+                                        <li><strong>bu</strong>: Business Unit - SIA 7 caratteri</li>
+                                        <li><strong>bu1</strong>: SIA + stabilimento (12 caratteri)</li>
+                                        <li>I terminali esistenti vengono aggiornati, i nuovi vengono aggiunti</li>
                                     </ul>
                                 </div>
                             </div>

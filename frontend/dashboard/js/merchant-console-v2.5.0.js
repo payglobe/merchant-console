@@ -115,6 +115,17 @@ function dashboard() {
         binTotalRecords: 0,
         binImportPolling: null,
 
+        // Store import (anagrafica terminali)
+        storeUploadFile: null,
+        storeUploadProgress: 0,
+        storeUploadMessage: '',
+        storeImportId: null,
+        storeImportStatus: null,
+        storeProcessedRecords: 0,
+        storeTotalRecords: 0,
+        storeImportPolling: null,
+        storeCount: 0,
+
         // Filtered transactions for search
         get filteredTransactions() {
             if (!this.transactionSearch || this.transactionSearch.trim() === '') {
@@ -2967,6 +2978,168 @@ function dashboard() {
             if (this.binImportPolling) {
                 clearInterval(this.binImportPolling);
                 this.binImportPolling = null;
+            }
+        },
+
+        // === STORE IMPORT (ANAGRAFICA TERMINALI) ===
+
+        handleStoreFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const isCSV = file.name.toLowerCase().endsWith('.csv');
+                const isZIP = file.name.toLowerCase().endsWith('.zip');
+
+                if (!isCSV && !isZIP) {
+                    alert('Seleziona un file CSV o ZIP contenente CSV');
+                    event.target.value = '';
+                    return;
+                }
+                this.storeUploadFile = file;
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                const fileType = isZIP ? 'ZIP' : 'CSV';
+                this.storeUploadMessage = `File selezionato: ${file.name} (${sizeMB} MB - ${fileType})`;
+            }
+        },
+
+        async uploadStores() {
+            if (!this.storeUploadFile) {
+                alert('Seleziona un file CSV o ZIP');
+                return;
+            }
+
+            if (!confirm('Importare anagrafica terminali?\n\nI terminali esistenti verranno aggiornati, i nuovi verranno aggiunti.')) {
+                return;
+            }
+
+            this.loading = true;
+            this.storeUploadProgress = 0;
+            this.storeProcessedRecords = 0;
+            this.storeTotalRecords = 0;
+            this.storeImportStatus = 'uploading';
+            this.storeUploadMessage = '📤 Upload file in corso...';
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const formData = new FormData();
+                formData.append('file', this.storeUploadFile);
+
+                // Usa endpoint ASINCRONO
+                const response = await fetch(`${this.apiUrl}/api/v2/stores/admin/upload-async`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.storeImportId = result.importId;
+                    this.storeImportStatus = 'processing';
+                    this.storeUploadMessage = '⏳ Import in corso...';
+
+                    // Avvia polling per controllare progresso
+                    this.startStoreImportPolling();
+                } else {
+                    const contentType = response.headers.get('content-type');
+                    let errorMessage = 'Upload fallito';
+
+                    try {
+                        if (contentType && contentType.includes('application/json')) {
+                            const error = await response.json();
+                            errorMessage = error.error || error.message || errorMessage;
+                        } else {
+                            const errorText = await response.text();
+                            errorMessage = errorText || `Errore HTTP ${response.status}`;
+                        }
+                    } catch (e) {
+                        errorMessage = `Errore HTTP ${response.status}`;
+                    }
+
+                    this.storeUploadMessage = '❌ Errore: ' + errorMessage;
+                    this.loading = false;
+                }
+            } catch (error) {
+                console.error('Error uploading stores:', error);
+                this.storeUploadMessage = '❌ Errore di connessione';
+                this.loading = false;
+            }
+        },
+
+        startStoreImportPolling() {
+            // Clear existing polling
+            if (this.storeImportPolling) {
+                clearInterval(this.storeImportPolling);
+            }
+
+            // Poll ogni 2 secondi
+            this.storeImportPolling = setInterval(async () => {
+                try {
+                    const token = localStorage.getItem('accessToken');
+                    const response = await fetch(`${this.apiUrl}/api/v2/stores/admin/import-status/${this.storeImportId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const progress = await response.json();
+
+                        this.storeImportStatus = progress.status;
+                        this.storeUploadProgress = progress.progressPercentage || 0;
+                        this.storeProcessedRecords = progress.processedRecords || 0;
+                        this.storeTotalRecords = progress.totalRecords || 0;
+
+                        if (progress.status === 'processing') {
+                            this.storeUploadMessage = `⏳ Import in corso: ${this.storeProcessedRecords.toLocaleString()} record processati (${this.storeUploadProgress.toFixed(1)}%)`;
+                        } else if (progress.status === 'completed') {
+                            this.storeUploadProgress = 100;
+                            this.storeUploadMessage = `✅ Import completato! ${progress.importedRecords.toLocaleString()} terminali importati`;
+                            this.storeUploadFile = null;
+                            document.getElementById('storeFileInput').value = '';
+                            this.stopStoreImportPolling();
+                            this.loading = false;
+
+                            // Aggiorna conteggio stores
+                            this.loadStoreCount();
+                            // Ricarica lista stores
+                            this.loadStores();
+
+                            setTimeout(() => {
+                                this.storeUploadMessage = '';
+                                this.storeUploadProgress = 0;
+                                this.storeProcessedRecords = 0;
+                                this.storeTotalRecords = 0;
+                            }, 8000);
+                        } else if (progress.status === 'failed') {
+                            this.storeUploadMessage = `❌ Import fallito: ${progress.errorMessage || 'Errore sconosciuto'}`;
+                            this.stopStoreImportPolling();
+                            this.loading = false;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling store import status:', error);
+                }
+            }, 2000);
+        },
+
+        stopStoreImportPolling() {
+            if (this.storeImportPolling) {
+                clearInterval(this.storeImportPolling);
+                this.storeImportPolling = null;
+            }
+        },
+
+        async loadStoreCount() {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${this.apiUrl}/api/v2/stores/admin/count`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.storeCount = data.count || 0;
+                }
+            } catch (error) {
+                console.error('Error loading store count:', error);
             }
         }
     };

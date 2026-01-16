@@ -60,19 +60,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     /**
      * Trova transazioni per Business Unit e range date
-     * Join con store per filtrare per BU - QUERY NATIVA per evitare problemi con @NotFound
+     * Join con store per filtrare per BU (bu, bu1 o bu2) - QUERY NATIVA per evitare problemi con @NotFound
      */
     @Query(value = """
         SELECT t.* FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         ORDER BY t.transaction_date DESC
         """,
         countQuery = """
         SELECT COUNT(*) FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         """,
         nativeQuery = true)
@@ -84,12 +84,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Trova transazioni per BU e POSID in un range di date
+     * Trova transazioni per BU (bu, bu1 o bu2) e POSID in un range di date
      */
     @Query(value = """
         SELECT t.* FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND FIND_IN_SET(t.posid, :posids) > 0
         AND t.transaction_date BETWEEN :startDate AND :endDate
         ORDER BY t.transaction_date DESC
@@ -97,7 +97,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         countQuery = """
         SELECT COUNT(*) FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND FIND_IN_SET(t.posid, :posids) > 0
         AND t.transaction_date BETWEEN :startDate AND :endDate
         """,
@@ -134,7 +134,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Statistiche dashboard - Per Business Unit
+     * Statistiche dashboard - Per Business Unit (bu, bu1 o bu2)
      */
     @Query(value = """
         SELECT
@@ -150,7 +150,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             SUM(CASE WHEN t.settlement_flag != '1' THEN 1 ELSE 0 END) as not_settled_count
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         """, nativeQuery = true)
     Map<String, Object> calculateDashboardStatsByBu(
@@ -185,7 +185,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Statistiche dashboard - Per BU e POSID specifici (utente normale + filtro negozio)
+     * Statistiche dashboard - Per BU (bu, bu1 o bu2) e POSID specifici (utente normale + filtro negozio)
      */
     @Query(value = """
         SELECT
@@ -201,7 +201,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             SUM(CASE WHEN t.settlement_flag != '1' THEN 1 ELSE 0 END) as not_settled_count
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND FIND_IN_SET(t.posid, :posids) > 0
         AND t.transaction_date BETWEEN :startDate AND :endDate
         """, nativeQuery = true)
@@ -229,13 +229,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Distribuzione circuiti (solo settled) - Per BU
+     * Distribuzione circuiti (solo settled) - Per BU (bu, bu1 o bu2)
      */
     @Query(value = """
         SELECT t.card_brand, COUNT(*) as count
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         AND t.settlement_flag = '1'
         GROUP BY t.card_brand
@@ -266,13 +266,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Distribuzione circuiti (solo settled) - Per BU e POSID specifici (utente normale + filtro negozio)
+     * Distribuzione circuiti (solo settled) - Per BU (bu, bu1 o bu2) e POSID specifici (utente normale + filtro negozio)
      */
     @Query(value = """
         SELECT t.card_brand, COUNT(*) as count
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND FIND_IN_SET(t.posid, :posids) > 0
         AND t.transaction_date BETWEEN :startDate AND :endDate
         AND t.settlement_flag = '1'
@@ -311,7 +311,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Trend giornaliero (transazioni + volume) - Per BU
+     * Trend giornaliero (transazioni + volume) - Per BU (bu, bu1 o bu2)
      */
     @Query(value = """
         SELECT
@@ -326,7 +326,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             END) as daily_volume
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         GROUP BY DATE(t.transaction_date)
         ORDER BY DATE(t.transaction_date)
@@ -364,7 +364,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Trend giornaliero (transazioni + volume) - Per BU e POSID specifici (utente normale + filtro negozio)
+     * Trend giornaliero (transazioni + volume) - Per BU (bu, bu1 o bu2) e POSID specifici (utente normale + filtro negozio)
      */
     @Query(value = """
         SELECT
@@ -379,7 +379,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             END) as daily_volume
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND FIND_IN_SET(t.posid, :posids) > 0
         AND t.transaction_date BETWEEN :startDate AND :endDate
         GROUP BY DATE(t.transaction_date)
@@ -429,12 +429,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Lista transazioni per BU e date range (limitata)
+     * Lista transazioni per BU (bu, bu1 o bu2) e date range (limitata)
      */
     @Query(value = """
         SELECT t.* FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         AND t.settlement_flag = '1'
         ORDER BY t.transaction_date DESC
@@ -448,12 +448,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     );
 
     /**
-     * Lista transazioni per BU, POSID e date range (limitata)
+     * Lista transazioni per BU (bu, bu1 o bu2), POSID e date range (limitata)
      */
     @Query(value = """
         SELECT t.* FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
-        WHERE s.bu = :bu
+        WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
         AND FIND_IN_SET(t.posid, :posids) > 0
         AND t.transaction_date BETWEEN :startDate AND :endDate
         AND t.settlement_flag = '1'
