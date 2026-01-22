@@ -2,7 +2,7 @@
 session_start();
 
 // DB connection for password reset
-$servername = "10.10.10.12";
+$servername = "10.10.10.13";
 $username = "PGDBUSER";
 $password = "PNeNkar{K1.%D~V";
 $dbname = "payglobe";
