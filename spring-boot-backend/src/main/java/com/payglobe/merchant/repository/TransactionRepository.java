@@ -29,18 +29,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
      */
     @Query(value = """
         SELECT t.* FROM transactions t
-        WHERE FIND_IN_SET(t.posid, :posids) > 0
+        WHERE t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         ORDER BY t.transaction_date DESC
         """,
         countQuery = """
         SELECT COUNT(*) FROM transactions t
-        WHERE FIND_IN_SET(t.posid, :posids) > 0
+        WHERE t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         """,
         nativeQuery = true)
     Page<Transaction> findByPosidAndDateRange(
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate,
         Pageable pageable
@@ -90,7 +90,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         SELECT t.* FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
         WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
-        AND FIND_IN_SET(t.posid, :posids) > 0
+        AND t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         ORDER BY t.transaction_date DESC
         """,
@@ -98,13 +98,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         SELECT COUNT(*) FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
         WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
-        AND FIND_IN_SET(t.posid, :posids) > 0
+        AND t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         """,
         nativeQuery = true)
     Page<Transaction> findByBuAndPosidAndDateRange(
         @Param("bu") String bu,
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate,
         Pageable pageable
@@ -175,11 +175,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             SUM(CASE WHEN settlement_flag = '1' THEN 1 ELSE 0 END) as settled_count,
             SUM(CASE WHEN settlement_flag != '1' THEN 1 ELSE 0 END) as not_settled_count
         FROM transactions
-        WHERE FIND_IN_SET(posid, :posids) > 0
+        WHERE posid IN (:posids)
         AND transaction_date BETWEEN :startDate AND :endDate
         """, nativeQuery = true)
     Map<String, Object> calculateDashboardStatsByPosid(
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
@@ -202,12 +202,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
         WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
-        AND FIND_IN_SET(t.posid, :posids) > 0
+        AND t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         """, nativeQuery = true)
     Map<String, Object> calculateDashboardStatsByBuAndPosid(
         @Param("bu") String bu,
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
@@ -253,14 +253,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query(value = """
         SELECT card_brand, COUNT(*) as count
         FROM transactions
-        WHERE FIND_IN_SET(posid, :posids) > 0
+        WHERE posid IN (:posids)
         AND transaction_date BETWEEN :startDate AND :endDate
         AND settlement_flag = '1'
         GROUP BY card_brand
         ORDER BY count DESC
         """, nativeQuery = true)
     List<Object[]> getCircuitDistributionByPosid(
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
@@ -273,7 +273,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
         WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
-        AND FIND_IN_SET(t.posid, :posids) > 0
+        AND t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         AND t.settlement_flag = '1'
         GROUP BY t.card_brand
@@ -281,7 +281,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         """, nativeQuery = true)
     List<Object[]> getCircuitDistributionByBuAndPosid(
         @Param("bu") String bu,
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
@@ -352,13 +352,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                 ELSE 0
             END) as daily_volume
         FROM transactions
-        WHERE FIND_IN_SET(posid, :posids) > 0
+        WHERE posid IN (:posids)
         AND transaction_date BETWEEN :startDate AND :endDate
         GROUP BY DATE(transaction_date)
         ORDER BY DATE(transaction_date)
         """, nativeQuery = true)
     List<Object[]> getDailyTrendByPosid(
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
@@ -380,14 +380,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
         WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
-        AND FIND_IN_SET(t.posid, :posids) > 0
+        AND t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         GROUP BY DATE(t.transaction_date)
         ORDER BY DATE(t.transaction_date)
         """, nativeQuery = true)
     List<Object[]> getDailyTrendByBuAndPosid(
         @Param("bu") String bu,
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
@@ -415,14 +415,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
      */
     @Query(value = """
         SELECT * FROM transactions
-        WHERE FIND_IN_SET(posid, :posids) > 0
+        WHERE posid IN (:posids)
         AND transaction_date BETWEEN :startDate AND :endDate
         AND settlement_flag = '1'
         ORDER BY transaction_date DESC
         LIMIT :maxResults
         """, nativeQuery = true)
     List<Transaction> findByPosidAndDateRangeList(
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate,
         @Param("maxResults") int maxResults
@@ -454,7 +454,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         SELECT t.* FROM transactions t
         INNER JOIN stores s ON t.posid = s.TerminalID
         WHERE (s.bu = :bu OR s.bu1 = :bu OR s.bu2 = :bu)
-        AND FIND_IN_SET(t.posid, :posids) > 0
+        AND t.posid IN (:posids)
         AND t.transaction_date BETWEEN :startDate AND :endDate
         AND t.settlement_flag = '1'
         ORDER BY t.transaction_date DESC
@@ -462,7 +462,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         """, nativeQuery = true)
     List<Transaction> findByBuAndPosidAndDateRangeList(
         @Param("bu") String bu,
-        @Param("posids") String posids,
+        @Param("posids") List<String> posids,
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate,
         @Param("maxResults") int maxResults

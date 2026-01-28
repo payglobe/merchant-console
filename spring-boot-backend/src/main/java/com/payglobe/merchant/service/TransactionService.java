@@ -75,7 +75,7 @@ public class TransactionService {
             // Admin vede tutto
             if (filterStore != null && !filterStore.isBlank()) {
                 transactionPage = transactionRepository.findByPosidAndDateRange(
-                    filterStore, startDate, endDate, pageable);
+                    parseFilterStore(filterStore), startDate, endDate, pageable);
             } else {
                 transactionPage = transactionRepository.findByDateRange(
                     startDate, endDate, pageable);
@@ -84,7 +84,7 @@ public class TransactionService {
             // Utente normale: filtra per BU (e opzionalmente per store)
             if (filterStore != null && !filterStore.isBlank()) {
                 transactionPage = transactionRepository.findByBuAndPosidAndDateRange(
-                    currentUser.getBu(), filterStore, startDate, endDate, pageable);
+                    currentUser.getBu(), parseFilterStore(filterStore), startDate, endDate, pageable);
             } else {
                 transactionPage = transactionRepository.findByBuAndDateRange(
                     currentUser.getBu(), startDate, endDate, pageable);
@@ -123,14 +123,14 @@ public class TransactionService {
 
         if (currentUser.isAdmin()) {
             if (filterStore != null && !filterStore.isBlank()) {
-                stats = transactionRepository.calculateDashboardStatsByPosid(filterStore, startDate, endDate);
+                stats = transactionRepository.calculateDashboardStatsByPosid(parseFilterStore(filterStore), startDate, endDate);
             } else {
                 stats = transactionRepository.calculateDashboardStats(startDate, endDate);
             }
         } else {
             if (filterStore != null && !filterStore.isBlank()) {
                 stats = transactionRepository.calculateDashboardStatsByBuAndPosid(
-                    currentUser.getBu(), filterStore, startDate, endDate);
+                    currentUser.getBu(), parseFilterStore(filterStore), startDate, endDate);
             } else {
                 stats = transactionRepository.calculateDashboardStatsByBu(
                     currentUser.getBu(), startDate, endDate);
@@ -162,14 +162,14 @@ public class TransactionService {
 
         if (currentUser.isAdmin()) {
             if (filterStore != null && !filterStore.isBlank()) {
-                results = transactionRepository.getCircuitDistributionByPosid(filterStore, startDate, endDate);
+                results = transactionRepository.getCircuitDistributionByPosid(parseFilterStore(filterStore), startDate, endDate);
             } else {
                 results = transactionRepository.getCircuitDistribution(startDate, endDate);
             }
         } else {
             if (filterStore != null && !filterStore.isBlank()) {
                 results = transactionRepository.getCircuitDistributionByBuAndPosid(
-                    currentUser.getBu(), filterStore, startDate, endDate);
+                    currentUser.getBu(), parseFilterStore(filterStore), startDate, endDate);
             } else {
                 results = transactionRepository.getCircuitDistributionByBu(
                     currentUser.getBu(), startDate, endDate);
@@ -209,14 +209,14 @@ public class TransactionService {
 
         if (currentUser.isAdmin()) {
             if (filterStore != null && !filterStore.isBlank()) {
-                results = transactionRepository.getDailyTrendByPosid(filterStore, startDate, endDate);
+                results = transactionRepository.getDailyTrendByPosid(parseFilterStore(filterStore), startDate, endDate);
             } else {
                 results = transactionRepository.getDailyTrend(startDate, endDate);
             }
         } else {
             if (filterStore != null && !filterStore.isBlank()) {
                 results = transactionRepository.getDailyTrendByBuAndPosid(
-                    currentUser.getBu(), filterStore, startDate, endDate);
+                    currentUser.getBu(), parseFilterStore(filterStore), startDate, endDate);
             } else {
                 results = transactionRepository.getDailyTrendByBu(
                     currentUser.getBu(), startDate, endDate);
@@ -254,7 +254,7 @@ public class TransactionService {
         if (currentUser.isAdmin()) {
             if (filterStore != null && !filterStore.isBlank()) {
                 transactions = transactionRepository.findByPosidAndDateRangeList(
-                    filterStore, startDate, endDate, 50000);
+                    parseFilterStore(filterStore), startDate, endDate, 50000);
             } else {
                 transactions = transactionRepository.findByDateRangeList(
                     startDate, endDate, 50000);
@@ -262,7 +262,7 @@ public class TransactionService {
         } else {
             if (filterStore != null && !filterStore.isBlank()) {
                 transactions = transactionRepository.findByBuAndPosidAndDateRangeList(
-                    currentUser.getBu(), filterStore, startDate, endDate, 50000);
+                    currentUser.getBu(), parseFilterStore(filterStore), startDate, endDate, 50000);
             } else {
                 transactions = transactionRepository.findByBuAndDateRangeList(
                     currentUser.getBu(), startDate, endDate, 50000);
@@ -644,6 +644,20 @@ public class TransactionService {
             return BigDecimal.valueOf(((Number) value).doubleValue());
         }
         return BigDecimal.ZERO;
+    }
+
+    /**
+     * Converte filterStore da String "pos1,pos2,pos3" a List<String>
+     * Per usare IN clause invece di FIND_IN_SET (performance)
+     */
+    private List<String> parseFilterStore(String filterStore) {
+        if (filterStore == null || filterStore.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(filterStore.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(java.util.stream.Collectors.toList());
     }
 
 }
